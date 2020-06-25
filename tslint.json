@@ -1,0 +1,125 @@
+
+{
+    "defaultSeverity": "error",
+    "extends": [
+        //        "tslint:recommended",
+        "tslint-eslint-rules"
+        //        ,"tslint-config-prettier"
+    ],
+    "jsRules": {},
+    "rules": {
+        "align": true,
+        "array-type": [true, "array"],
+        "arrow-parens": true,
+        "brace-style": [
+            true,
+            "allman",
+            {
+                "allowSingleLine": true
+            }
+        ],
+        "comment-format": [true, "check-space"],
+        "curly": "all",
+        "eofline": true,
+        "file-name-casing": [true, "pascal-case"],
+        "indent": [true, "spaces", 4],
+        "interface-name": [true, "always-prefix"],
+        "match-default-export-name": false,
+        "member-access": true,
+        "member-ordering": [
+            true,
+            {
+                "order": [
+//                    "private-static-field",
+//                    "private-instance-field",
+//
+//                    "protected-static-field",
+//                    "protected-instance-field",
+//
+//                    "public-static-field",
+//                    "public-instance-field",
+//
+//                    "private-constructor",
+//                    "protected-constructor",
+//                    "public-constructor",
+
+                    "private-static-method",
+                    "private-instance-method",
+                    "protected-static-method",
+                    "protected-instance-method",
+                    "public-static-method",
+                    "public-instance-method"
+                ],
+                "alphabetize": true
+            }
+        ],
+        "newline-per-chained-call": false,
+        "no-consecutive-blank-lines": true,
+        "no-console": [true, "log"],
+        "no-duplicate-imports": false,
+        "no-irregular-whitespace": true,
+        "no-magic-numbers": false,
+        "no-string-literal": true,
+        "no-trailing-whitespace": true,
+        "one-variable-per-declaration": [true, "ignore-for-loop"],
+        "ordered-imports": true,
+        "prefer-const": true,
+        "quotemark": [ true, "double" ],
+        "semicolon": [true, "always"],
+        "space-before-function-paren": [true, "never"],
+        "space-within-parens": 0,
+        // "ter-max-len": [
+        //     true,
+        //     {
+        //         "code": 120,
+        //         "ignoreComments": true,
+        //         "ignoreImports": false,
+        //         "ignoreUrls": true
+        //     }
+        // ],
+        "max-line-length": [
+            true,
+            {
+                "limit": 120,
+                "ignore-pattern": "//"
+            }
+        ],
+        "trailing-comma": [true, {"multiline": "always", "singleline": "never"}],
+        "type-literal-delimiter": true,
+        "typedef": [
+            true,
+            "arrow-call-signature",
+            "arrow-parameter",
+            "call-signature",
+            "member-variable-declaration",
+            "parameter",
+            "property-declaration",
+            "variable-declaration",
+            "variable-declaration-ignore-function"
+        ],
+        "typedef-whitespace": [
+          true,
+          {
+            "call-signature": "nospace",
+            "index-signature": "nospace",
+            "parameter": "nospace",
+            "property-declaration": "nospace",
+            "variable-declaration": "nospace"
+          }
+        ],
+        "whitespace": [
+          true,
+          "check-branch",
+          "check-decl",
+          "check-operator",
+          "check-separator",
+          "check-type",
+          "check-type-operator",
+          "check-preblock"
+//          "check-postbrace"
+        ]
+    },
+    "rulesDirectory": [
+        "node_modules/tslint-eslint-rules/dist/rules"
+    ]
+}
