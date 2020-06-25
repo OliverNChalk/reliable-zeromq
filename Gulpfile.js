@@ -7,8 +7,11 @@ const del   = require("del");
 const DistFolder  = "./Dist";
 const RootFolder  = "./";
 const SrcFolder   = "./Src";
+const TestFolder  = `${DistFolder}/Test`;
 
 const _TSC_       = `tsc`;
+const _AVA_       = `node ./node_modules/ava/cli.js`;
+let _TestCommand_ = _AVA_;
 // ---------------------------------------------------------------------------------------------------------------------
 const DistPath = (aPath = "") => {
     return DistFolder + aPath;
@@ -24,6 +27,10 @@ const DistDest = (aPath = "") => {
 
 const Root = (aPath = "") => {
     return gulp.src(RootPath(aPath));
+};
+
+const TestPath = (aPath = "") => {
+    return `${TestFolder}${aPath}/*.test.js`;
 };
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -51,3 +58,16 @@ gulp.task("__build", gulp.series(
     "__compile",
     "__copy"
 ));
+
+// ---------------------------------------------------------------------------------------------------------------------
+const execTests = (done, testPath) => {
+    exec(`${_TestCommand_} ${TestPath(testPath)}`, {}, (error, sout, serr) => {
+        serr && console.error(serr);
+        done(error);
+    }).stdout.pipe(process.stdout);
+};
+
+// ---------------------------------------------------------------------------------------------------------------------
+gulp.task("__tests", done => {
+    execTests(done, "");
+});
