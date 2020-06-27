@@ -1,0 +1,35 @@
+{
+  "name": "reliable-zmq",
+  "version": "0.1.1",
+  "description": "A collection of reliable zeromq messaging constructs",
+  "main": "Gulpfile.js",
+  "dependencies": {
+    "typescript-collections": "^1.3.3",
+    "zeromq": "^6.0.0-beta.6"
+  },
+  "devDependencies": {
+    "ava": "^3.9.0",
+    "gulp": "^4.0.2",
+    "sinon": "^9.0.2"
+  },
+  "scripts": {
+    "test": "gulp __tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OliverNChalk/reliable-zeromq.git"
+  },
+  "keywords": [
+    "zeromq",
+    "reliable",
+    "pubsub",
+    "request",
+    "reseponse"
+  ],
+  "author": "Oliver Chalk",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/OliverNChalk/reliable-zeromq/issues"
+  },
+  "homepage": "https://github.com/OliverNChalk/reliable-zeromq#readme"
+}

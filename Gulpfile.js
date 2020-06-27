@@ -10,7 +10,7 @@ const SrcFolder   = "./Src";
 const TestFolder  = `${DistFolder}/Test`;
 
 const _TSC_       = `tsc`;
-const _AVA_       = `node ./node_modules/ava/cli.js`;
+const _AVA_       = `node ./node_modules/ava/cli.js \\"${DistFolder}/**/*.test.js\\"`;
 let _TestCommand_ = _AVA_;
 // ---------------------------------------------------------------------------------------------------------------------
 const DistPath = (aPath = "") => {
@@ -60,14 +60,9 @@ gulp.task("__build", gulp.series(
 ));
 
 // ---------------------------------------------------------------------------------------------------------------------
-const execTests = (done, testPath) => {
-    exec(`${_TestCommand_} ${TestPath(testPath)}`, {}, (error, sout, serr) => {
+gulp.task("__tests", done => {
+    exec(`${_TestCommand_}`, {}, (error, sout, serr) => {
         serr && console.error(serr);
         done(error);
     }).stdout.pipe(process.stdout);
-};
-
-// ---------------------------------------------------------------------------------------------------------------------
-gulp.task("__tests", done => {
-    execTests(done, "");
 });
