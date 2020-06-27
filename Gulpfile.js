@@ -34,7 +34,7 @@ const TestPath = (aPath = "") => {
 };
 
 // ---------------------------------------------------------------------------------------------------------------------
-gulp.task("clean", done => {
+gulp.task("__clean", done => {
     del([DistPath("**/*")], { force: true });
     done();
 });
@@ -53,14 +53,14 @@ gulp.task("__copy", gulp.parallel(
 ));
 
 // ---------------------------------------------------------------------------------------------------------------------
-gulp.task("__build", gulp.series(
-    "clean",
+gulp.task("build", gulp.series(
+    "__clean",
     "__compile",
     "__copy"
 ));
 
 // ---------------------------------------------------------------------------------------------------------------------
-gulp.task("__tests", done => {
+gulp.task("test", done => {
     exec(`${_TestCommand_}`, {}, (error, sout, serr) => {
         serr && console.error(serr);
         done(error);
