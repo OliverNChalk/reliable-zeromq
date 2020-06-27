@@ -11,7 +11,8 @@ const TestFolder  = `${DistFolder}/Test`;
 
 const _TSC_       = `tsc`;
 const _AVA_       = `node ./node_modules/ava/cli.js \\"${DistFolder}/**/*.test.js\\"`;
-let _TestCommand_ = _AVA_;
+const _NYC_       = `node ./node_modules/nyc/bin/nyc.js --reporter=lcov ${_AVA_}`;
+
 // ---------------------------------------------------------------------------------------------------------------------
 const DistPath = (aPath = "") => {
     return DistFolder + aPath;
@@ -61,7 +62,23 @@ gulp.task("build", gulp.series(
 
 // ---------------------------------------------------------------------------------------------------------------------
 gulp.task("test", done => {
-    exec(`${_TestCommand_}`, {}, (error, sout, serr) => {
+    exec(`${_AVA_}`, {}, (error, sout, serr) => {
+        serr && console.error(serr);
+        done(error);
+    }).stdout.pipe(process.stdout);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+gulp.task("coverage", done => {
+    exec(`${_NYC_}`, {}, (error, sout, serr) => {
+        serr && console.error(serr);
+        done(error);
+    }).stdout.pipe(process.stdout);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+gulp.task("coverage-report", done => {
+    exec(`codecov`, {}, (error, sout, serr) => {
         serr && console.error(serr);
         done(error);
     }).stdout.pipe(process.stdout);

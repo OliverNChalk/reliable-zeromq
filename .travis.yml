@@ -1,10 +1,13 @@
+dist: bionic
 language: node_js
-node_js : 14.4
-install :
-  - npm install -g typescript@3.9.5
+node_js: 14.4
+install:
+  - npm install -g typescript
+  - npm install -g codecov
   - npm ci
   - gulp build
-script  :
+script:
   - gulp build
-  - gulp test
-dist: bionic
+  - gulp coverage
+after_success:
+  - gulp coverage-report

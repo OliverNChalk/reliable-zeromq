@@ -11,6 +11,7 @@
     "@types/sinon": "^9.0.4",
     "ava": "^3.9.0",
     "gulp": "^4.0.2",
+    "nyc": "^15.1.0",
     "sinon": "^9.0.2",
     "tslint": "^5.20.1",
     "tslint-eslint-rules": "^5.4.0",
@@ -19,7 +20,8 @@
   "scripts": {
     "test": "gulp __tests",
     "tslint-check": "tslint --project .",
-    "tslint-fix": "tslint --project . --fix"
+    "tslint-fix": "tslint --project . --fix",
+    "report-coverage": "nyc report --reporter=text-lcov > coverage.lcov && codecov"
   },
   "repository": {
     "type": "git",
