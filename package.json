@@ -18,10 +18,9 @@
     "typescript": "^3.9.5"
   },
   "scripts": {
-    "test": "gulp __tests",
+    "test": "gulp test",
     "tslint-check": "tslint --project .",
-    "tslint-fix": "tslint --project . --fix",
-    "report-coverage": "nyc report --reporter=text-lcov > coverage.lcov && codecov"
+    "tslint-fix": "tslint --project . --fix"
   },
   "repository": {
     "type": "git",

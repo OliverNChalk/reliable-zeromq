@@ -29,7 +29,7 @@ test("Constructor", async(t: ExecutionContext<TTestContext>): Promise<void> =>
     const clock: sinon.SinonFakeTimers = sinon.useFakeTimers();
 
     let lCalled: boolean = false;
-    Delay(500).then(() => { lCalled = true });
+    Delay(500).then((): void => { lCalled = true; });
 
     clock.tick(500);
     await Promise.resolve();    // Yield test method to event loop

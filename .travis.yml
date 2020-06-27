@@ -5,8 +5,8 @@ install:
   - npm install -g typescript
   - npm install -g codecov
   - npm ci
-  - gulp build
 script:
+  - gulp lint
   - gulp build
   - gulp coverage
 after_success:

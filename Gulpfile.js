@@ -9,9 +9,10 @@ const RootFolder  = "./";
 const SrcFolder   = "./Src";
 const TestFolder  = `${DistFolder}/Test`;
 
-const _TSC_       = `tsc`;
+const _TSC_       = `tsc`;      // TODO: Check compatibility of using local typescript dependency
 const _AVA_       = `node ./node_modules/ava/cli.js \\"${DistFolder}/**/*.test.js\\"`;
 const _NYC_       = `node ./node_modules/nyc/bin/nyc.js --reporter=lcov ${_AVA_}`;
+const _TSLINT_    = `tslint`;   // TODO: Use locally installed tslint
 
 // ---------------------------------------------------------------------------------------------------------------------
 const DistPath = (aPath = "") => {
@@ -79,6 +80,22 @@ gulp.task("coverage", done => {
 // ---------------------------------------------------------------------------------------------------------------------
 gulp.task("coverage-report", done => {
     exec(`codecov`, {}, (error, sout, serr) => {
+        serr && console.error(serr);
+        done(error);
+    }).stdout.pipe(process.stdout);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+gulp.task("lint", done => {
+    exec(`${_TSLINT_} --project . --fix`, {}, (error, sout, serr) => {
+        serr && console.error(serr);
+        done(error);
+    }).stdout.pipe(process.stdout);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+gulp.task("lint-check", done => {
+    exec(`${_TSLINT_} --project .`, {}, (error, sout, serr) => {
         serr && console.error(serr);
         done(error);
     }).stdout.pipe(process.stdout);
