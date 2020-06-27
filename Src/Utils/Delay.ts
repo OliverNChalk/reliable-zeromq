@@ -5,4 +5,4 @@ export const Delay = (aMS: number = 100): Promise<void> =>
     {
        setTimeout(aResolve, aMS);
     });
-}
+};

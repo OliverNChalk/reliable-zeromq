@@ -1,5 +1,5 @@
-import { MAXIMUM_LATENCY } from "./Constants";
 import * as zmq from "zeromq";
+import { MAXIMUM_LATENCY } from "./Constants";
 import { Delay } from "./Utils/Delay";
 
 const RESPONSE_TIMEOUT: number = 500;   // 500ms   (this includes computation time on the wrapped service)

@@ -1,6 +1,6 @@
-import ExpiryMap from "./Utils/ExpiryMap";
 import * as zmq from "zeromq";
 import { MAXIMUM_LATENCY } from "./Constants";
+import ExpiryMap from "./Utils/ExpiryMap";
 
 const REQUEST_EXPIRY: number = 3 * MAXIMUM_LATENCY;   // 1 Minute
 
@@ -36,7 +36,7 @@ export class ZMQResponse
                 lPromise = undefined!;
             }
 
-            lPromise.then((aResponse: string) =>
+            lPromise.then((aResponse: string): void =>
             {
                 this.mCachedRequests.set(lMessageId, aResponse);
                 this.mRouter.send([sender, nonce, aResponse]);  // Delimiter not necessary when talk to dealer

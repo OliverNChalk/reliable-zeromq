@@ -1,7 +1,7 @@
-import JSONBigInt from "./Utils/JSONBigInt";
 import * as zmq from "zeromq";
-import { EEndpoint, DUMMY_ENDPOINTS } from "./Constants";
+import { DUMMY_ENDPOINTS, EEndpoint } from "./Constants";
 import { IMessage, TEndpointAddresses } from "./Interfaces";
+import JSONBigInt from "./Utils/JSONBigInt";
 import { ZMQRequest } from "./ZMQRequest";
 
 export type MessageCallback<P> = (aError: Error | undefined, aMessage: IMessage) => void;
@@ -61,7 +61,7 @@ export class ZMQSubscriber
 
                 if (lTopicCallbacks.size > 0)
                 {
-                    lTopicCallbacks.forEach((aCallback: MessageCallback<any>) =>
+                    lTopicCallbacks.forEach((aCallback: MessageCallback<any>): void =>
                     {
                         aCallback(undefined, { topic: lTopic, data: lMessage });
                     });
@@ -129,10 +129,10 @@ export class ZMQSubscriber
         const lMissingMessages: string = await aEndpointEntry.Requester.Send(JSONBigInt.Stringify(aMessageIds));
         const lParsedMessages: string[] = JSONBigInt.Parse(lMissingMessages.toString());
 
-        lParsedMessages.forEach((aParsedMessage: string) =>
+        lParsedMessages.forEach((aParsedMessage: string): void =>
         {
             this.mEndpoints.get(aEndpoint)!.TopicEntries.get(aTopic)!.Callbacks.forEach(
-            (aCallback: MessageCallback<any>) =>
+            (aCallback: MessageCallback<any>): void =>
             {
                 aCallback(undefined, { topic: aTopic, data: aParsedMessage });
             });
@@ -147,7 +147,7 @@ export class ZMQSubscriber
         for (let i: number = 0; i < lEndpoints.length; ++i)
         {
             this.AddSubscriptionEndpoint(lEndpoints[i] as EEndpoint)
-                .catch((aReason: any) =>
+                .catch((aReason: any): void =>
                 {
                     throw new Error("Failed to add subscription endpoint \n" + JSONBigInt.Stringify(aReason));
                 });
@@ -156,7 +156,7 @@ export class ZMQSubscriber
 
     public Stop(): void
     {
-        this.mEndpoints.forEach((aEndpoint: TEndpointEntry) =>
+        this.mEndpoints.forEach((aEndpoint: TEndpointEntry): void =>
         {
             aEndpoint.Subscriber.linger = 0;
             aEndpoint.Subscriber.close();

@@ -1,9 +1,9 @@
-import ExpiryMap from "./Utils/ExpiryMap";
-import JSONBigInt from "./Utils/JSONBigInt";
 import * as zmq from "zeromq";
 import { MessageLike } from "zeromq";
-import { EEndpoint, MAXIMUM_LATENCY, DUMMY_ENDPOINTS } from "./Constants";
+import { DUMMY_ENDPOINTS, EEndpoint, MAXIMUM_LATENCY } from "./Constants";
 import { TEndpointAddresses } from "./Interfaces";
+import ExpiryMap from "./Utils/ExpiryMap";
+import JSONBigInt from "./Utils/JSONBigInt";
 import { ZMQResponse } from "./ZMQResponse";
 
 const CACHE_EXPIRY_MS: number = 3 * MAXIMUM_LATENCY;    // HEARTBEAT_TIME + PUBLISH_TIME + REQUEST_TIME
@@ -36,7 +36,7 @@ export class ZMQPublisher
     {
         const lRequest: string[] = JSONBigInt.Parse(aMessage);
         const lTopic: string = lRequest.shift()!;
-        const lDecodedRequest: bigint[] = lRequest.map((aValue: string) => BigInt(aValue));
+        const lDecodedRequest: bigint[] = lRequest.map((aValue: string): bigint => BigInt(aValue));
 
         const lRequestedMessages: (MessageLike | MessageLike[])[] = [];
 

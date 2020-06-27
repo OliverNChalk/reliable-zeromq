@@ -2,9 +2,7 @@
 {
     "defaultSeverity": "error",
     "extends": [
-        //        "tslint:recommended",
         "tslint-eslint-rules"
-        //        ,"tslint-config-prettier"
     ],
     "jsRules": {},
     "rules": {
@@ -30,19 +28,6 @@
             true,
             {
                 "order": [
-//                    "private-static-field",
-//                    "private-instance-field",
-//
-//                    "protected-static-field",
-//                    "protected-instance-field",
-//
-//                    "public-static-field",
-//                    "public-instance-field",
-//
-//                    "private-constructor",
-//                    "protected-constructor",
-//                    "public-constructor",
-
                     "private-static-method",
                     "private-instance-method",
                     "protected-static-method",
@@ -68,15 +53,6 @@
         "semicolon": [true, "always"],
         "space-before-function-paren": [true, "never"],
         "space-within-parens": 0,
-        // "ter-max-len": [
-        //     true,
-        //     {
-        //         "code": 120,
-        //         "ignoreComments": true,
-        //         "ignoreImports": false,
-        //         "ignoreUrls": true
-        //     }
-        // ],
         "max-line-length": [
             true,
             {
@@ -116,7 +92,6 @@
           "check-type",
           "check-type-operator",
           "check-preblock"
-//          "check-postbrace"
         ]
     },
     "rulesDirectory": [

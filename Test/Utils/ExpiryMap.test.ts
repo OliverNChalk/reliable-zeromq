@@ -1,24 +1,25 @@
-import anyTest from "ava";
+/* tslint:disable: no-string-literal */
+import anyTest, { ExecutionContext } from "ava";
 import type { TestInterface } from "ava";
 import * as sinon from "sinon";
 import ExpiryMap from "../../Src/Utils/ExpiryMap";
 
-interface TTestContext
+type TTestContext =
 {
-    ExpiryBuffer: number,
-    ExpiryMap: ExpiryMap<string, string>,
-    DummyValues: [string, string][],
-    FilledMap: ExpiryMap<string, string>,
-}
-const test = anyTest as TestInterface<TTestContext> ;
+    ExpiryBuffer: number;
+    ExpiryMap: ExpiryMap<string, string>;
+    DummyValues: [string, string][];
+    FilledMap: ExpiryMap<string, string>;
+};
 
+const test: TestInterface<TTestContext> = anyTest as TestInterface<TTestContext> ;
 
-test.before(async(t: any) =>
+test.before(async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
     // Async setup before all tests
 });
 
-test.beforeEach((t: any) =>
+test.beforeEach((t: ExecutionContext<TTestContext>): void =>
 {
     // Temporary setup before each test runs
     t.context.ExpiryBuffer = 500;
@@ -32,12 +33,12 @@ test.beforeEach((t: any) =>
     ];
 });
 
-test.afterEach((t: any) =>
+test.afterEach((t: ExecutionContext<TTestContext>): void =>
 {
     sinon.restore();
 });
 
-test("Constructor", (t) =>
+test("Constructor", (t: ExecutionContext<TTestContext>): void =>
 {
     const lNewMap: ExpiryMap<string, string> = new ExpiryMap<string, string>(0);
 
@@ -46,9 +47,9 @@ test("Constructor", (t) =>
     t.is(lNewMap.size, 0);
 });
 
-test("Constructor with Entries", (t) =>
+test("Constructor with Entries", (t: ExecutionContext<TTestContext>): void =>
 {
-    const lDummyEntries = t.context.DummyValues;
+    const lDummyEntries: [string, string][] = t.context.DummyValues;
     const lNewMap: ExpiryMap<string, string> = new ExpiryMap<string, string>(0, lDummyEntries);
 
     t.is(lNewMap["mExpiryMS"], 0);
@@ -56,11 +57,11 @@ test("Constructor with Entries", (t) =>
     t.is(lNewMap.size, t.context.DummyValues.length);
 });
 
-test("Set, Get, and Clear", async(t) =>
+test("Set, Get, and Clear", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
-    const clock = sinon.useFakeTimers();
-    const lMap = t.context.ExpiryMap;
-    const lDummyValues = t.context.DummyValues;
+    const clock: sinon.SinonFakeTimers = sinon.useFakeTimers();
+    const lMap: ExpiryMap<string, string> = t.context.ExpiryMap;
+    const lDummyValues: [string, string][] = t.context.DummyValues;
 
     lMap.set(lDummyValues[0][0], lDummyValues[0][1]);
     t.is(lMap.get(lDummyValues[0][0]), lDummyValues[0][1]);
@@ -81,10 +82,10 @@ test("Set, Get, and Clear", async(t) =>
     t.is(lMap.size, 0);
 });
 
-test("5s Expiry", (t) =>
+test("5s Expiry", (t: ExecutionContext<TTestContext>): void =>
 {
-    const clock = sinon.useFakeTimers();
-    const lMap = new ExpiryMap(5000, t.context.DummyValues);
+    const clock: sinon.SinonFakeTimers = sinon.useFakeTimers();
+    const lMap: Map<string, string> = new ExpiryMap(5000, t.context.DummyValues);
 
     clock.tick(5000 + t.context.ExpiryBuffer - 1);
     t.is(lMap.size, t.context.DummyValues.length);

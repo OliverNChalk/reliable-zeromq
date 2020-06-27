@@ -11,10 +11,15 @@
     "@types/sinon": "^9.0.4",
     "ava": "^3.9.0",
     "gulp": "^4.0.2",
-    "sinon": "^9.0.2"
+    "sinon": "^9.0.2",
+    "tslint": "^6.1.2",
+    "tslint-eslint-rules": "^5.4.0",
+    "typescript": "^3.9.5"
   },
   "scripts": {
-    "test": "gulp __tests"
+    "test": "gulp __tests",
+    "tslint-check": "tslint --project .",
+    "tslint-fix": "tslint --project . --fix"
   },
   "repository": {
     "type": "git",
