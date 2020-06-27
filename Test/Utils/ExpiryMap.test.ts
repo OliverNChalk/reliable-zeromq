@@ -16,12 +16,11 @@ const test: TestInterface<TTestContext> = anyTest as TestInterface<TTestContext>
 
 test.before(async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
-    // Async setup before all tests
+    // No setup necessary
 });
 
 test.beforeEach((t: ExecutionContext<TTestContext>): void =>
 {
-    // Temporary setup before each test runs
     t.context.ExpiryBuffer = 500;
     t.context.ExpiryMap = new ExpiryMap(0);
     t.context.DummyValues = [
