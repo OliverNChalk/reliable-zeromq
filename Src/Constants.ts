@@ -16,3 +16,4 @@ export const DUMMY_ENDPOINTS: TEndpointAddressList =
 };
 
 export const MAXIMUM_LATENCY: number = 5000;
+export const HEARTBEAT_INTERVAL: number = 1000;

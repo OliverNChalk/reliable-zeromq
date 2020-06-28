@@ -2,6 +2,7 @@ import * as zmq from "zeromq";
 import { DUMMY_ENDPOINTS, EEndpoint } from "./Constants";
 import { IMessage, TEndpointAddresses } from "./Interfaces";
 import JSONBigInt from "./Utils/JSONBigInt";
+import { EMessageType } from "./ZMQPublisher";
 import { ZMQRequest } from "./ZMQRequest";
 
 export type MessageCallback<P> = (aError: Error | undefined, aMessage: IMessage) => void;
@@ -46,29 +47,38 @@ export class ZMQSubscriber
         lSocketEntry.Requester.Start();
         this.mEndpoints.set(aEndpoint, lSocketEntry);
 
-        for await (const [topic, nonce, msg] of lSubSocket)
+        for await (const [topic, type, nonce, msg] of lSubSocket)
         {
             const lTopic: string = topic.toString();
+            const lType: EMessageType = type.toString() as EMessageType;
             const lNonce: bigint = BigInt(nonce.toString());
             const lMessage: any = JSONBigInt.Parse(msg.toString());
 
-            // Process message nonce and call callback if not duplicate
-            if (this.ProcessNonce(aEndpoint, lTopic, lNonce))
+            if (lType === EMessageType.HEARTBEAT)
             {
-                // Forwards messages to their relevant subscriber
-                const lTopicCallbacks: Map<bigint, MessageCallback<any>>
-                    = lSocketEntry.TopicEntries.get(lTopic)!.Callbacks;
+                const lNextMessageNonce: bigint = lNonce + 1n;
+                this.ProcessNonce(aEndpoint, lTopic, lNextMessageNonce);
+            }
+            else
+            {
+                // Process message nonce and call callback if not duplicate
+                if (this.ProcessNonce(aEndpoint, lTopic, lNonce))
+                {
+                    // Forwards messages to their relevant subscriber
+                    const lTopicCallbacks: Map<bigint, MessageCallback<any>>
+                        = lSocketEntry.TopicEntries.get(lTopic)!.Callbacks;
 
-                if (lTopicCallbacks.size > 0)
-                {
-                    lTopicCallbacks.forEach((aCallback: MessageCallback<any>): void =>
+                    if (lTopicCallbacks.size > 0)
                     {
-                        aCallback(undefined, { topic: lTopic, data: lMessage });
-                    });
-                }
-                else
-                {
-                    console.error("ERROR: No registered callbacks for this topic");
+                        lTopicCallbacks.forEach((aCallback: MessageCallback<any>): void =>
+                        {
+                            aCallback(undefined, { topic: lTopic, data: lMessage });
+                        });
+                    }
+                    else
+                    {
+                        throw new Error("ERROR: No registered callbacks for this topic");
+                    }
                 }
             }
         }
@@ -88,12 +98,6 @@ export class ZMQSubscriber
         }
         else if (aNonce > lExpectedNonce)
         {
-            console.error({
-                msg: "ZMQ_SUB: MESSAGES MISSED",
-                lExpectedNonce,
-                ReceivedNonce: aNonce,
-            });
-
             const lMissingNonces: string[] = [];
             for (let i: bigint = lExpectedNonce; i < aNonce; ++i)
             {
@@ -105,12 +109,6 @@ export class ZMQSubscriber
         }
         else
         {
-            console.error({
-                msg: "ZMQ_SUB: DUPLICATE MESSAGE",
-                lExpectedNonce,
-                ReceivedNonce: aNonce,
-            });
-
             lCallCallback = false;
         }
 

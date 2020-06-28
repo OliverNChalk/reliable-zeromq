@@ -1,6 +1,6 @@
 import * as zmq from "zeromq";
 import { MessageLike } from "zeromq";
-import { DUMMY_ENDPOINTS, EEndpoint, MAXIMUM_LATENCY } from "./Constants";
+import { DUMMY_ENDPOINTS, EEndpoint, HEARTBEAT_INTERVAL, MAXIMUM_LATENCY } from "./Constants";
 import { TEndpointAddresses } from "./Interfaces";
 import ExpiryMap from "./Utils/ExpiryMap";
 import JSONBigInt from "./Utils/JSONBigInt";
@@ -10,11 +10,23 @@ const CACHE_EXPIRY_MS: number = 3 * MAXIMUM_LATENCY;    // HEARTBEAT_TIME + PUBL
 const CACHE_ERROR: string = "PUBLISHER ERROR: MESSAGE NOT IN CACHE";
 const BAD_REQUEST_ERROR: string = "BAD REQUEST: TOPIC DOES NOT EXIST";
 
+export enum EMessageType
+{
+    HEARTBEAT = "HEARTBEAT",
+    PUBLISH = "PUBLISH",
+}
+
+type TTopicDetails =
+{
+    LatestMessageNonce: bigint;
+    LatestMessageTimestamp: number;
+};
+
 export class ZMQPublisher
 {
-    private mMessageCaches: Map<string, Map<bigint, MessageLike | MessageLike[]>> = new Map();
+    private mMessageCaches: Map<string, Map<bigint, string[]>> = new Map();
 
-    private mNonce: bigint = 0n;
+    private mTopicDetails: Map<string, TTopicDetails> = new Map();
     private mPublisher!: zmq.Publisher;
 
     private readonly mPublisherEndpoint: EEndpoint;
@@ -27,9 +39,27 @@ export class ZMQPublisher
         this.mReplier = new ZMQResponse(DUMMY_ENDPOINTS[aEndpoint].RequestAddress, this.HandleRequest);
     }
 
-    private get Nonce(): bigint
+    private CheckHeartbeats = async(): Promise<void> =>
     {
-        return ++this.mNonce;
+        if (this.mPublisher)    // TODO: Is a publisher null-check better than IEngine parent class with mIsRunning?
+        {
+            this.mTopicDetails.forEach(async(aValue: TTopicDetails, aKey: string): Promise<void> =>
+            {
+                if (aValue.LatestMessageTimestamp + HEARTBEAT_INTERVAL <= Date.now())
+                {
+                    await this.mPublisher.send(
+                        [
+                            aKey,
+                            EMessageType.HEARTBEAT,
+                            aValue.LatestMessageNonce.toString(),
+                            "",
+                        ],
+                    );
+                }
+            });
+
+            setTimeout(this.CheckHeartbeats, HEARTBEAT_INTERVAL);
+        }
     }
 
     private HandleRequest = (aMessage: string): Promise<string> =>
@@ -68,8 +98,13 @@ export class ZMQPublisher
             this.mMessageCaches.set(aTopic, new ExpiryMap(CACHE_EXPIRY_MS));
         }
 
-        const lMessageNonce: bigint = this.Nonce;
-        const lMessage: string[] = [aTopic, lMessageNonce.toString(), JSONBigInt.Stringify(aData)];
+        const lMessageNonce: bigint = this.mTopicDetails.get(aTopic)!.LatestMessageNonce;
+        const lMessage: string[] = [
+            aTopic,
+            EMessageType.PUBLISH,
+            lMessageNonce.toString(),
+            JSONBigInt.Stringify(aData),
+        ];
         this.mMessageCaches.get(aTopic)!.set(lMessageNonce, lMessage);
 
         await lSocket.send(lMessage);
