@@ -35,4 +35,12 @@ test("Constructor", async(t: ExecutionContext<TTestContext>): Promise<void> =>
     await Promise.resolve();    // Yield test method to event loop
 
     t.is(lCalled, true);
+
+    lCalled = false;
+    Delay().then((): void => { lCalled = true; });
+
+    clock.tick(100);
+    await Promise.resolve();    // Yield test method to event loop
+
+    t.is(lCalled, true);
 });

@@ -93,7 +93,70 @@ test("5s Expiry", (t: ExecutionContext<TTestContext>): void =>
     t.is(lMap.size, 0);
 });
 
-// test("Staggered Insertion", () =>
-// {
-//
-// });
+test("Staggered Insertion & Pruning", (t: ExecutionContext<TTestContext>): void =>
+{
+    const clock: sinon.SinonFakeTimers = sinon.useFakeTimers();
+    const lMap: ExpiryMap<bigint, number> = new ExpiryMap<bigint, number>(2000);
+
+    lMap.set(0n, 0);         // 0,1,2 at 0s. Expire 2s, Timer 2.5s
+    lMap.set(1n, 1);
+    lMap.set(2n, 2);
+
+    clock.tick(1000);   // 3,4,5 at 1s. Expire 3s
+    lMap.set(3n, 3);
+    lMap.set(4n, 4);
+    lMap.set(5n, 5);
+
+    clock.tick(900);    // 6,7,8 at 1.9s. Expire 3.9s
+    lMap.set(6n, 6);
+    lMap.set(7n, 7);
+    lMap.set(8n, 8);
+
+    t.is(lMap.size, 9);
+
+    clock.tick(600);    // 2.5s, timer triggered, first 3 cleared
+    t.is(lMap.size, 6);
+
+    clock.tick(1000);   // 3.5s, 2nd timer triggered, next 3 cleared
+    t.is(lMap.size, 3);
+
+    clock.tick(900);    // 4.4s 3rd timer triggered, final 3 cleared
+    t.is(lMap.size, 0);
+});
+
+test("Staggered Insertion, Batched Pruning", (t: ExecutionContext<TTestContext>): void =>
+{
+    const clock: sinon.SinonFakeTimers = sinon.useFakeTimers();
+    const lMap: ExpiryMap<number, boolean> = new ExpiryMap<number, boolean>(2000);
+
+    lMap.set(0, true);
+    lMap.set(1, true);
+
+    clock.tick(100);
+    lMap.set(2, true);
+    lMap.set(3, true);
+
+    clock.tick(200);
+    lMap.set(4, true);
+    lMap.set(5, true);
+
+    clock.tick(200);
+    lMap.set(6, true);
+    lMap.set(7, true);
+
+    clock.tick(100);
+    lMap.set(8, true);
+    lMap.set(9, true);
+
+    t.is(lMap.size, 10);
+
+    clock.tick(1899);
+    t.is(lMap.size, 10);
+    clock.tick(1);
+    t.is(lMap.size, 2);
+
+    clock.tick(599);
+    t.is(lMap.size, 2);
+    clock.tick(1);
+    t.is(lMap.size, 0);
+});

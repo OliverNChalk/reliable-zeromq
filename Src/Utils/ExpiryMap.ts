@@ -45,7 +45,7 @@ export default class ExpiryMap<K, V> extends Map<K, V>
         const lStaleTime: number = Date.now();
 
         // PERF: Can optimize with for() & break on undefined
-        while (this.mExpiryQueue.size() > 0 && lStaleTime > this.mExpiryQueue.peek()!.Expiry)
+        while (this.mExpiryQueue.size() > 0 && lStaleTime >= this.mExpiryQueue.peek()!.Expiry)
         {
             const lKey: K = this.mExpiryQueue.dequeue()!.Key;
 
