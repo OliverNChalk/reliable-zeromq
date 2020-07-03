@@ -7,11 +7,12 @@ import * as zmq from "zeromq";
 import { MAXIMUM_LATENCY } from "../Src/Constants";
 import JSONBigInt from "../Src/Utils/JSONBigInt";
 import { ZMQRequest } from "../Src/ZMQRequest";
+import { ZMQResponse } from "../Src/ZMQResponse";
 
 type TAsyncIteratorResult = { value: any; done: boolean };
 type TTestContext =
 {
-    ReceiverEndpoint: string;
+    ResponderEndpoint: string;
     TestData: any[];
     DealerMock: MockManager<zmq.Dealer>;
     SUTCallback: (aMessage: TAsyncIteratorResult) => void;
@@ -46,11 +47,11 @@ test.beforeEach((t: ExecutionContext<TTestContext>): void =>
     lMockManager.mock(Symbol.asyncIterator, lNewIterator);
 
     t.context = {
-        ReceiverEndpoint: "fake_endpoint",
+        ResponderEndpoint: "tcp://127.0.0.1:3000",
         TestData: [
             {
                 a: 100n,
-                b: "20n",
+                b: 20n, // JSONBigInt will parse "20n" to 20n, known issue
                 c: 0.5,
                 d: [
                     5n,
@@ -76,7 +77,7 @@ test.afterEach((t: ExecutionContext<TTestContext>): void =>
 test.serial("Start, Send, Receive, Repeat", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
     const lDealerStub: MockManager<zmq.Dealer> = t.context.DealerMock;
-    const lRequest: ZMQRequest = new ZMQRequest(t.context.ReceiverEndpoint);
+    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
 
     lRequest.Start();
 
@@ -112,11 +113,11 @@ test.serial("Start, Send, Receive, Repeat", async(t: ExecutionContext<TTestConte
     lRequest.Stop();
 });
 
-test("Maximum Latency", async(t: ExecutionContext<TTestContext>): Promise<void> =>
+test.serial("Maximum Latency", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
     const clock: sinon.SinonFakeTimers = sinon.useFakeTimers();
     const lDealerStub: MockManager<zmq.Dealer> = t.context.DealerMock;
-    const lRequest: ZMQRequest = new ZMQRequest(t.context.ReceiverEndpoint);
+    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
 
     lRequest.Start();
     lDealerStub.mock("send", Promise.resolve());
@@ -144,6 +145,59 @@ test("Maximum Latency", async(t: ExecutionContext<TTestContext>): Promise<void> 
     }
 
     await t.throwsAsync(lThirdResponsePromise);
+});
+
+test.serial("Networked: Start, Send, Receive, Repeat", async(t: ExecutionContext<TTestContext>): Promise<void> =>
+{
+    const lExpected: { code: string; data: any } =
+    {
+        code: "success",
+        data: undefined!,
+    };
+    t.context.DealerMock.restore();
+    const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, async(aMsg: string): Promise<string> =>
+    {
+        let lResult: string;
+        try
+        {
+            lResult = JSONBigInt.Parse(aMsg);
+        }
+        catch (e)
+        {
+            lResult = aMsg as string;
+        }
+
+        return JSONBigInt.Stringify({
+            code: "success",
+            data: lResult,
+        });
+    });
+    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
+
+    lRequest.Start();
+    await lResponse.Start();
+
+    const lPromiseResult: string = await lRequest.Send(JSONBigInt.Stringify(t.context.TestData));
+    lExpected.data = t.context.TestData;
+    t.deepEqual(JSONBigInt.Parse(lPromiseResult), lExpected);
+
+    lRequest.Stop();
+
+    await t.throwsAsync(async(): Promise<void> =>
+    {
+        await lRequest.Send("this should throw");
+    });
+
+    lRequest.Start();
+    const lNotThrowPromise: Promise<string> = lRequest.Send("this should not throw");
+
+    const lNotThrowResult: string = await lNotThrowPromise;
+    lExpected.data = "this should not throw";
+
+    t.deepEqual(JSONBigInt.Parse(lNotThrowResult), lExpected);
+
+    lRequest.Stop();
+    lResponse.Stop();
 });
 
 test.todo("Error Case: Unregistered Message Caller");

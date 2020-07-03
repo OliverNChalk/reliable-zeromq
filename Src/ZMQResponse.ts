@@ -33,7 +33,7 @@ export class ZMQResponse
             }
             else
             {
-                lPromise = undefined!;
+                lPromise = Promise.resolve(lResponse);
             }
 
             lPromise.then((aResponse: string): void =>

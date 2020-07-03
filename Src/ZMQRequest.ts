@@ -65,6 +65,7 @@ export class ZMQRequest
 
     public async Send(aData: string): Promise<string>
     {
+        // TODO: Build a way to safely send multiple requests without creating a backlog
         const lRequestId: number = this.mRequestNonce;
 
         const lRequest: string[] =
@@ -73,9 +74,9 @@ export class ZMQRequest
             aData,
         ];
         await this.mDealer.send(lRequest);
-        ++this.mRequestNonce;
 
         this.ManageRequest(lRequestId, lRequest);
+        ++this.mRequestNonce;
 
         return new Promise<string>((aResolve: TResolve, aReject: TReject): void =>
         {
