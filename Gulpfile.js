@@ -4,15 +4,15 @@ const cp    = require("child_process");
 const exec  = cp.exec;
 const del   = require("del");
 
-const DistFolder  = "./Dist";
-const RootFolder  = "./";
-const SrcFolder   = "./Src";
+const RootFolder  = `${__dirname}`;
+const DistFolder  = `${RootFolder}/Dist`;
+const SrcFolder   = `${RootFolder}/Src`;
 const TestFolder  = `${DistFolder}/Test`;
 
-const _TSC_       = `tsc`;      // TODO: Check compatibility of using local typescript dependency
-const _AVA_       = `node ./node_modules/ava/cli.js \\"${DistFolder}/**/*.test.js\\"`;
-const _NYC_       = `node ./node_modules/nyc/bin/nyc.js --reporter=lcov ${_AVA_}`;
-const _TSLINT_    = `tslint`;   // TODO: Use locally installed tslint
+const _TSC_       =  `${RootFolder}/node_modules/typescript/bin/tsc`;
+const _AVA_       = `node ${RootFolder}/node_modules/ava/cli.js \\"${DistFolder}/**/*.test.js\\"`;
+const _NYC_       = `node ${RootFolder}/node_modules/nyc/bin/nyc.js --reporter=lcov ${_AVA_}`;
+const _TSLINT_    = `${RootFolder}/node_modules/tslint/bin/tslint`;
 
 // ---------------------------------------------------------------------------------------------------------------------
 const DistPath = (aPath = "") => {
@@ -43,7 +43,7 @@ gulp.task("__clean", done => {
 
 // ---------------------------------------------------------------------------------------------------------------------
 gulp.task("__compile", done => {
-    exec(_TSC_, { cwd: SrcFolder}, (error, sout, serr) => {
+    exec(_TSC_, (error, sout, serr) => {
         serr && console.error(serr);
         done(error);
     }).stdout.pipe(process.stdout);
@@ -51,7 +51,7 @@ gulp.task("__compile", done => {
 
 // ---------------------------------------------------------------------------------------------------------------------
 gulp.task("__copy", gulp.parallel(
-    () => Root("tsconfig.json").pipe(DistDest()),
+    () => Root("/tsconfig.json").pipe(DistDest()),
 ));
 
 // ---------------------------------------------------------------------------------------------------------------------

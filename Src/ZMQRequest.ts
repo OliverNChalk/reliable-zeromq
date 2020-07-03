@@ -4,13 +4,22 @@ import { Delay } from "./Utils/Delay";
 
 const RESPONSE_TIMEOUT: number = 500;   // 500ms   (this includes computation time on the wrapped service)
 const ROUND_TRIP_MAX_TIME: number = 2 * MAXIMUM_LATENCY;
+const MAX_TIME_ERROR: string = "MAX ROUND TRIP TIME BREACHED, STOPPING";
+
+type TResolve = (aResult: string) => void;
+type TReject = (aReason: any) => void;
+type TResolveReject =
+{
+    Resolve: TResolve;
+    Reject: TReject;
+};
 
 export class ZMQRequest
 {
 
     private mDealer!: zmq.Dealer;
     private readonly mEndpoint: string;
-    private mPendingRequests: Map<string, (aResponse: string) => void> = new Map();
+    private mPendingRequests: Map<string, TResolveReject> = new Map();
     private mRequestNonce: bigint = 0n;
 
     public constructor(aReceiverEndpoint: string)
@@ -29,9 +38,12 @@ export class ZMQRequest
             await Delay(RESPONSE_TIMEOUT);
         }
 
-        if (this.mPendingRequests.has(aRequestId))
+        const lResolver: TResolveReject | undefined = this.mPendingRequests.get(aRequestId);
+        if (lResolver)
         {
-            throw new Error(`Failed to process ${aRequestId} in ${ROUND_TRIP_MAX_TIME}ms`);
+            // TODO: Error via EventEmitter
+            lResolver.Reject(new Error(MAX_TIME_ERROR));
+            this.Stop();
         }
     }
 
@@ -40,23 +52,13 @@ export class ZMQRequest
         for await (const [nonce, msg] of this.mDealer)
         {
             // Forward requests to the registered handler
-            const lMessageCaller: ((aResponse: string) => void) | undefined
-                = this.mPendingRequests.get(nonce.toString());
+            const lMessageCaller: TResolveReject | undefined = this.mPendingRequests.get(nonce.toString());
 
             if (lMessageCaller)
             {
-                lMessageCaller(msg.toString());
+                lMessageCaller.Resolve(msg.toString());
+                this.mPendingRequests.delete(nonce.toString());
             }
-            else
-            {
-                console.error({
-                    error: "NO REGISTERED CALLBACK",
-                    nonce: nonce,
-                    msg: msg,
-                });
-            }
-
-            this.mPendingRequests.delete(nonce.toString());
         }
     }
 
@@ -69,19 +71,19 @@ export class ZMQRequest
             this.mRequestNonce.toString(),
             aData,
         ];
-
         await this.mDealer.send(lRequest);
 
         this.ManageRequest(lRequestId, lRequest);
 
-        return new Promise<string>((aResolve: (aResponse: string) => void): void =>
+        return new Promise<string>((aResolve: TResolve, aReject: TReject): void =>
         {
-            this.mPendingRequests.set(lRequestId, aResolve);
+            this.mPendingRequests.set(lRequestId, { Resolve: aResolve, Reject: aReject });
         });
     }
 
     public Start(): void
     {
+        this.mRequestNonce = 0n;
         this.mDealer = new zmq.Dealer;
         this.mDealer.connect(this.mEndpoint);
         this.ResponseHandler();
