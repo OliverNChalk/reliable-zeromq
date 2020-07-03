@@ -85,7 +85,7 @@ test.serial("Start, Send, Receive, Repeat", async(t: ExecutionContext<TTestConte
 
     const lResponse: string[] =
     [
-        JSONBigInt.Stringify(1),
+        JSONBigInt.Stringify(0),
         "dummy message",
     ];
     t.context.SendToReceiver(lResponse);
@@ -122,14 +122,14 @@ test("Maximum Latency", async(t: ExecutionContext<TTestContext>): Promise<void> 
     lDealerStub.mock("send", Promise.resolve());
 
     const lFirstResponsePromise: Promise<string> = lRequest.Send(JSONBigInt.Stringify("hello"));
-    t.context.SendToReceiver([JSONBigInt.Stringify(1), "world"]);
+    t.context.SendToReceiver([JSONBigInt.Stringify(0), "world"]);
 
     t.is(await lFirstResponsePromise, "world");
 
     const lSecondResponsePromise: Promise<string> = lRequest.Send(JSONBigInt.Stringify("hello"));
 
     clock.tick(1500);
-    t.context.SendToReceiver([JSONBigInt.Stringify(2), "world"]);
+    t.context.SendToReceiver([JSONBigInt.Stringify(1), "world"]);
 
     t.is(await lSecondResponsePromise, "world");
 

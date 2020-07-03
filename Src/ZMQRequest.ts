@@ -1,6 +1,7 @@
 import * as zmq from "zeromq";
 import { MAXIMUM_LATENCY } from "./Constants";
 import { Delay } from "./Utils/Delay";
+import JSONBigInt from "./Utils/JSONBigInt";
 
 const RESPONSE_TIMEOUT: number = 500;   // 500ms   (this includes computation time on the wrapped service)
 const ROUND_TRIP_MAX_TIME: number = 2 * MAXIMUM_LATENCY;
@@ -16,18 +17,17 @@ type TResolveReject =
 
 export class ZMQRequest
 {
-
     private mDealer!: zmq.Dealer;
     private readonly mEndpoint: string;
-    private mPendingRequests: Map<string, TResolveReject> = new Map();
-    private mRequestNonce: bigint = 0n;
+    private mPendingRequests: Map<number, TResolveReject> = new Map();
+    private mRequestNonce: number = 0;
 
     public constructor(aReceiverEndpoint: string)
     {
         this.mEndpoint = aReceiverEndpoint;
     }
 
-    private async ManageRequest(aRequestId: string, aRequest: string[]): Promise<void>
+    private async ManageRequest(aRequestId: number, aRequest: string[]): Promise<void>
     {
         const lMaximumSendTime: number = Date.now() + ROUND_TRIP_MAX_TIME;
 
@@ -52,26 +52,28 @@ export class ZMQRequest
         for await (const [nonce, msg] of this.mDealer)
         {
             // Forward requests to the registered handler
-            const lMessageCaller: TResolveReject | undefined = this.mPendingRequests.get(nonce.toString());
+            const lRequestId: number = Number(nonce.toString());
+            const lMessageCaller: TResolveReject | undefined = this.mPendingRequests.get(lRequestId);
 
             if (lMessageCaller)
             {
                 lMessageCaller.Resolve(msg.toString());
-                this.mPendingRequests.delete(nonce.toString());
+                this.mPendingRequests.delete(lRequestId);
             }
         }
     }
 
     public async Send(aData: string): Promise<string>
     {
-        const lRequestId: string = (++this.mRequestNonce).toString();
+        const lRequestId: number = this.mRequestNonce;
 
         const lRequest: string[] =
         [
-            this.mRequestNonce.toString(),
+            JSONBigInt.Stringify(lRequestId),
             aData,
         ];
         await this.mDealer.send(lRequest);
+        ++this.mRequestNonce;
 
         this.ManageRequest(lRequestId, lRequest);
 
@@ -83,7 +85,6 @@ export class ZMQRequest
 
     public Start(): void
     {
-        this.mRequestNonce = 0n;
         this.mDealer = new zmq.Dealer;
         this.mDealer.connect(this.mEndpoint);
         this.ResponseHandler();
