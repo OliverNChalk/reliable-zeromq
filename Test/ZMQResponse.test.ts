@@ -5,10 +5,9 @@ import * as sinon from "sinon";
 import Sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
-import { ZMQResponse } from "../Src/ZMQResponse";
 import { Delay } from "../Src/Utils/Delay";
-import JSONBigInt from "../Src/Utils/JSONBigInt";
 import { ZMQRequest } from "../Src/ZMQRequest";
+import { ZMQResponse } from "../Src/ZMQResponse";
 
 type TAsyncIteratorResult = { value: any; done: boolean };
 type TTestContext =
