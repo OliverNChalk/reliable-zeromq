@@ -19,9 +19,7 @@ export enum EMessageType
     PUBLISH = "PUBLISH",
 }
 
-export type TEncodedMessage = [string, string, string];
-export type THeartbeatMessage = [string, EMessageType.HEARTBEAT, number, "\"\""];
-export type TPublishMessage = [string, EMessageType.PUBLISH, number, any];
+export type TPublisherMessage = [string, EMessageType, number, string];
 
 type TTopicDetails =
 {
@@ -58,7 +56,7 @@ export class ZMQPublisher
                         aKey,
                         EMessageType.HEARTBEAT,
                         aValue.LatestMessageNonce.toString(),
-                        "\"\"",
+                        "",
                     ],
                 );
             }
@@ -119,7 +117,7 @@ export class ZMQPublisher
             aTopic,
             EMessageType.PUBLISH,
             lMessageNonce.toString(),
-            JSONBigInt.Stringify(aData),
+            aData,
         ];
         lCache.set(lMessageNonce, lMessage);
         lTopicDetails.LatestMessageTimestamp = Date.now();

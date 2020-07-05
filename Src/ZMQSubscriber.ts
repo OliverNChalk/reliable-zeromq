@@ -2,15 +2,15 @@ import * as zmq from "zeromq";
 import { DUMMY_ENDPOINTS, EEndpoint } from "./Constants";
 import { TEndpointAddresses } from "./Interfaces";
 import JSONBigInt from "./Utils/JSONBigInt";
-import { EMessageType } from "./ZMQPublisher";
+import { EMessageType, TPublisherMessage } from "./ZMQPublisher";
 import { ZMQRequest } from "./ZMQRequest";
 
-export type MessageCallback = (aMessage: string) => void;   // TODO: Conflicts with our "any" lMessage type
+export type SubscriptionCallback = (aMessage: string) => void;
 
 type TTopicEntry =
 {
     Nonce: number;
-    Callbacks: Map<number, MessageCallback>;
+    Callbacks: Map<number, SubscriptionCallback>;
 };
 
 type TEndpointEntry =
@@ -49,10 +49,14 @@ export class ZMQSubscriber
 
         for await (const buffers of lSubSocket)
         {
-            const lTopic: string = buffers[0].toString();
-            const lType: EMessageType = buffers[1].toString() as EMessageType;
-            const lNonce: number = Number(buffers[2].toString());
-            const lMessage: any = JSONBigInt.Parse(buffers[3].toString());
+            const lEncodedMessage: string[] = buffers.map((value: Buffer): string => value.toString());
+            const [lTopic, lType, lNonce, lMessage]: TPublisherMessage =
+            [
+                lEncodedMessage[0],
+                lEncodedMessage[1] as EMessageType,
+                Number(lEncodedMessage[2]),
+                lEncodedMessage[3],
+            ];
 
             if (lType === EMessageType.HEARTBEAT)
             {
@@ -65,12 +69,12 @@ export class ZMQSubscriber
                 if (this.ProcessNonce(aEndpoint, lTopic, lNonce))
                 {
                     // Forwards messages to their relevant subscriber
-                    const lTopicCallbacks: Map<number, MessageCallback>
+                    const lTopicCallbacks: Map<number, SubscriptionCallback>
                         = lSocketEntry.TopicEntries.get(lTopic)!.Callbacks;
 
                     if (lTopicCallbacks.size > 0)
                     {
-                        lTopicCallbacks.forEach((aCallback: MessageCallback): void =>
+                        lTopicCallbacks.forEach((aCallback: SubscriptionCallback): void =>
                         {
                             aCallback(lMessage);
                         });
@@ -124,13 +128,14 @@ export class ZMQSubscriber
     {
         const lFormattedRequest: string[] = aMessageIds;
         lFormattedRequest.unshift(aTopic);
+
         const lMissingMessages: string = await aEndpointEntry.Requester.Send(JSONBigInt.Stringify(aMessageIds));
         const lParsedMessages: string[] = JSONBigInt.Parse(lMissingMessages.toString());
 
         lParsedMessages.forEach((aParsedMessage: string): void =>
         {
             this.mEndpoints.get(aEndpoint)!.TopicEntries.get(aTopic)!.Callbacks.forEach(
-            (aCallback: MessageCallback): void =>
+            (aCallback: SubscriptionCallback): void =>
             {
                 aCallback(aParsedMessage[3]);   // TODO: Use Enum, not magic numbers
             });
@@ -144,11 +149,7 @@ export class ZMQSubscriber
 
         for (let i: number = 0; i < lEndpoints.length; ++i)
         {
-            this.AddSubscriptionEndpoint(lEndpoints[i] as EEndpoint)
-                .catch((aReason: any): void =>
-                {
-                    throw new Error("Failed to add subscription endpoint \n" + JSONBigInt.Stringify(aReason));
-                });
+            this.AddSubscriptionEndpoint(lEndpoints[i] as EEndpoint);
         }
     }
 
@@ -163,7 +164,7 @@ export class ZMQSubscriber
         this.mEndpoints.clear();
     }
 
-    public Subscribe(aEndpoint: EEndpoint, aTopic: string, aCallback: MessageCallback): number
+    public Subscribe(aEndpoint: EEndpoint, aTopic: string, aCallback: SubscriptionCallback): number
     {
         const lEndpoint: TEndpointEntry = this.mEndpoints.get(aEndpoint)!;
         const lExistingTopic: TTopicEntry | undefined = lEndpoint.TopicEntries.get(aTopic);

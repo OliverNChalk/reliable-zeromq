@@ -93,7 +93,7 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
     await lPublisher.Publish("myTopicA", "myFirstMessage");
 
     t.is(lSendMock.callCount, 1);
-    t.deepEqual(lSendMock.getCall(0).args[0], ["myTopicA", EMessageType.PUBLISH, "1", "\"myFirstMessage\""]);
+    t.deepEqual(lSendMock.getCall(0).args[0], ["myTopicA", EMessageType.PUBLISH, "1", "myFirstMessage"]);
     t.is(lPublisher["mMessageCaches"].size, 1);
     t.is(lPublisher["mMessageCaches"].get("myTopicA")!.size, 1);
     t.is(lPublisher["mTopicDetails"].size, 1);
@@ -103,7 +103,7 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
     t.is(lSendMock.callCount, 2);
     t.deepEqual(
         lSendMock.getCall(1).args[0],
-        ["myTopicA", EMessageType.PUBLISH, "2", JSONBigInt.Stringify(JSONBigInt.Stringify(t.context.TestData))],
+        ["myTopicA", EMessageType.PUBLISH, "2", JSONBigInt.Stringify(t.context.TestData)],
     );
     t.is(lPublisher["mMessageCaches"].size, 1);
     t.is(lPublisher["mMessageCaches"].get("myTopicA")!.size, 2);
@@ -143,7 +143,7 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
     for (let i: number = 0; i < 5; ++i)
     {
         t.is(lSendMock.getCall(i + 2).args[0][0], lTestData[i][0]);
-        t.is(lSendMock.getCall(i + 2).args[0][3], "\"" + lTestData[i][1] + "\"");
+        t.is(lSendMock.getCall(i + 2).args[0][3], lTestData[i][1]);
     }
 
     const lSecondRecoveryRequest: [string, ...number[]] =
@@ -192,9 +192,9 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
     ];
     const lExpectedHeartbeats: string[][] =
     [
-        ["myTopicA", EMessageType.HEARTBEAT, "2", "\"\""],
-        ["newTopicA", EMessageType.HEARTBEAT, "3", "\"\""],
-        ["newTopic1", EMessageType.HEARTBEAT, "2", "\"\""],
+        ["myTopicA", EMessageType.HEARTBEAT, "2", ""],
+        ["newTopicA", EMessageType.HEARTBEAT, "3", ""],
+        ["newTopic1", EMessageType.HEARTBEAT, "2", ""],
     ];
 
     t.deepEqual(lHeartbeats, lExpectedHeartbeats);
@@ -222,7 +222,7 @@ test("Start, Stop, Start, Publish", async(t: ExecutionContext<TTestContext>): Pr
     await lPublisher.Publish("myTopicA", "myFirstMessage");
 
     t.is(lSendMock.callCount, 1);
-    t.deepEqual(lSendMock.getCall(0).args[0], ["myTopicA", EMessageType.PUBLISH, "1", "\"myFirstMessage\""]);
+    t.deepEqual(lSendMock.getCall(0).args[0], ["myTopicA", EMessageType.PUBLISH, "1", "myFirstMessage"]);
     t.is(lPublisher["mMessageCaches"].size, 1);
     t.is(lPublisher["mMessageCaches"].get("myTopicA")!.size, 1);
     t.is(lPublisher["mTopicDetails"].size, 1);

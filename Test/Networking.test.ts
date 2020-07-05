@@ -108,6 +108,7 @@ test.serial("ZMQResponse: Start, Receive, Repeat", async(t: ExecutionContext<TTe
         return lResponder(aMsg);    // Necessary so we can update lResponder throughout
     };
 
+    t.context.ResponderEndpoint = "tcp://127.0.0.1:4276";
     const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
     const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, lResponderRouter);
 
@@ -231,7 +232,7 @@ test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestConte
             const lTestResult: string[] = lTestDataResult[aEndpoint].Topics[aTopic].result;
             for (let i: number = 0; i < lTestData.length; ++i)
             {
-                t.is(lTestData[i], JSONBigInt.Parse(lTestResult[i]));
+                t.is(lTestData[i], lTestResult[i]);
             }
         }
     }
