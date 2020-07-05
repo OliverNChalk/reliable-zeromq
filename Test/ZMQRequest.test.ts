@@ -147,57 +147,57 @@ test.serial("Maximum Latency", async(t: ExecutionContext<TTestContext>): Promise
     await t.throwsAsync(lThirdResponsePromise);
 });
 
-test.serial("Networked: Start, Send, Receive, Repeat", async(t: ExecutionContext<TTestContext>): Promise<void> =>
-{
-    const lExpected: { code: string; data: any } =
-    {
-        code: "success",
-        data: undefined!,
-    };
-    t.context.DealerMock.restore();
-    const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, async(aMsg: string): Promise<string> =>
-    {
-        let lResult: string;
-        try
-        {
-            lResult = JSONBigInt.Parse(aMsg);
-        }
-        catch (e)
-        {
-            lResult = aMsg as string;
-        }
+// test.serial("Networked: Start, Send, Receive, Repeat", async(t: ExecutionContext<TTestContext>): Promise<void> =>
+// {
+//     const lExpected: { code: string; data: any } =
+//     {
+//         code: "success",
+//         data: undefined!,
+//     };
+//     t.context.DealerMock.restore();
+//     const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, async(aMsg: string): Promise<string> =>
+//     {
+//         let lResult: string;
+//         try
+//         {
+//             lResult = JSONBigInt.Parse(aMsg);
+//         }
+//         catch (e)
+//         {
+//             lResult = aMsg as string;
+//         }
+//
+//         return JSONBigInt.Stringify({
+//             code: "success",
+//             data: lResult,
+//         });
+//     });
+//     const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
+//
+//     lRequest.Start();
+//     await lResponse.Start();
+//
+//     const lPromiseResult: string = await lRequest.Send(JSONBigInt.Stringify(t.context.TestData));
+//     lExpected.data = t.context.TestData;
+//     t.deepEqual(JSONBigInt.Parse(lPromiseResult), lExpected);
+//
+//     lRequest.Stop();
+//
+//     await t.throwsAsync(async(): Promise<void> =>
+//     {
+//         await lRequest.Send("this should throw");
+//     });
+//
+//     lRequest.Start();
+//     const lNotThrowPromise: Promise<string> = lRequest.Send("this should not throw");
+//
+//     const lNotThrowResult: string = await lNotThrowPromise;
+//     lExpected.data = "this should not throw";
+//
+//     t.deepEqual(JSONBigInt.Parse(lNotThrowResult), lExpected);
+//
+//     lRequest.Stop();
+//     lResponse.Stop();
+// });
 
-        return JSONBigInt.Stringify({
-            code: "success",
-            data: lResult,
-        });
-    });
-    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
-
-    lRequest.Start();
-    await lResponse.Start();
-
-    const lPromiseResult: string = await lRequest.Send(JSONBigInt.Stringify(t.context.TestData));
-    lExpected.data = t.context.TestData;
-    t.deepEqual(JSONBigInt.Parse(lPromiseResult), lExpected);
-
-    lRequest.Stop();
-
-    await t.throwsAsync(async(): Promise<void> =>
-    {
-        await lRequest.Send("this should throw");
-    });
-
-    lRequest.Start();
-    const lNotThrowPromise: Promise<string> = lRequest.Send("this should not throw");
-
-    const lNotThrowResult: string = await lNotThrowPromise;
-    lExpected.data = "this should not throw";
-
-    t.deepEqual(JSONBigInt.Parse(lNotThrowResult), lExpected);
-
-    lRequest.Stop();
-    lResponse.Stop();
-});
-
-test.todo("Error Case: Unregistered Message Caller");
+test.todo("Test error cases after ErrorEmitter added");

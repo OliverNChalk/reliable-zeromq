@@ -93,7 +93,7 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
     await lPublisher.Publish("myTopicA", "myFirstMessage");
 
     t.is(lSendMock.callCount, 1);
-    t.deepEqual(lSendMock.getCall(0).args[0], ["myTopicA", EMessageType.PUBLISH, "0", "\"myFirstMessage\""]);
+    t.deepEqual(lSendMock.getCall(0).args[0], ["myTopicA", EMessageType.PUBLISH, "1", "\"myFirstMessage\""]);
     t.is(lPublisher["mMessageCaches"].size, 1);
     t.is(lPublisher["mMessageCaches"].get("myTopicA")!.size, 1);
     t.is(lPublisher["mTopicDetails"].size, 1);
@@ -103,7 +103,7 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
     t.is(lSendMock.callCount, 2);
     t.deepEqual(
         lSendMock.getCall(1).args[0],
-        ["myTopicA", EMessageType.PUBLISH, "1", JSONBigInt.Stringify(JSONBigInt.Stringify(t.context.TestData))],
+        ["myTopicA", EMessageType.PUBLISH, "2", JSONBigInt.Stringify(JSONBigInt.Stringify(t.context.TestData))],
     );
     t.is(lPublisher["mMessageCaches"].size, 1);
     t.is(lPublisher["mMessageCaches"].get("myTopicA")!.size, 2);
@@ -112,8 +112,8 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
     const lRecoveryRequest: [string, ...number[]] =
     [
         "myTopicA",
-        0,
         1,
+        2,
     ];
     const lRecoveryResponse: string = await lPublisher["HandleRequest"](JSONBigInt.Stringify(lRecoveryRequest));
     const lExpectedRecoveryResponse: string[][] = [
@@ -149,15 +149,15 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
     const lSecondRecoveryRequest: [string, ...number[]] =
     [
         "newTopicA",
-        0,
         1,
         2,
+        3,
     ];
     const lThirdRecoveryRequest: [string, ...number[]] =
     [
         "newTopic1",
-        0,
         1,
+        2,
     ];
 
     const lSecondRecoveryResponse: string
@@ -180,45 +180,54 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
     t.deepEqual(JSONBigInt.Parse(lSecondRecoveryResponse), lExpectedSecondResponse);
     t.deepEqual(JSONBigInt.Parse(lThirdRecoveryResponse), lExpectedThirdResponse);
 
-    // TODO: Test Heartbeating
-    // t.is(lSendMock.callCount, 7);
-    // t.is(lPublisher["mTopicDetails"].size, 3);
-    // clock.tick(HEARTBEAT_INTERVAL);
-    // // const lHeartbeat
-    //
-    // t.is(lSendMock.callCount, 13);  // KNOWN ISSUE: Start and Stop without delay triggers two timeouts
-    // // t.deepEqual([])
+    t.is(lSendMock.callCount, 7);
+    t.is(lPublisher["mTopicDetails"].size, 3);
+    clock.tick(HEARTBEAT_INTERVAL);
+
+    const lHeartbeats: string[][] =
+    [
+        lSendMock.getCall(7).args[0],
+        lSendMock.getCall(8).args[0],
+        lSendMock.getCall(9).args[0],
+    ];
+    const lExpectedHeartbeats: string[][] =
+    [
+        ["myTopicA", EMessageType.HEARTBEAT, "2", ""],
+        ["newTopicA", EMessageType.HEARTBEAT, "3", ""],
+        ["newTopic1", EMessageType.HEARTBEAT, "2", ""],
+    ];
+
+    t.deepEqual(lHeartbeats, lExpectedHeartbeats);
+    t.is(lSendMock.callCount, 10);
+
+    clock.tick(HEARTBEAT_INTERVAL);
+
+    t.is(lSendMock.callCount, 13);
 });
 
-// test.serial("Networked: Start, Receive, Repeat", async(t: ExecutionContext<TTestContext>): Promise<void> =>
-// {
-//     t.context.PublisherMock.restore();
-//     let lResponder = async(aMsg: string): Promise<string> => "world";
-//     const lResponderRouter = (aMsg: string): Promise<string> =>
-//     {
-//         return lResponder(aMsg);    // Necessary so we can update lResponder throughout
-//     };
-//
-//     const lRequest: ZMQRequest = new ZMQRequest(t.context.PublisherEndpoint);
-//     const lResponse: ZMQResponse = new ZMQResponse(t.context.PublisherEndpoint, lResponderRouter);
-//
-//     lRequest.Start();
-//
-//     await lResponse.Start();
-//     const lFirstResponse: string = await lRequest.Send("hello");
-//
-//     t.is(lFirstResponse, "world");
-//     t.is(lResponse["mCachedRequests"].size, 1);
-//
-//     lResponse.Stop();
-//     await lResponse.Start();
-//
-//     lResponder = async(aMsg: string): Promise<string> => aMsg + " response";
-//     const lSecondResponse: string = await lRequest.Send("hello");
-//
-//     t.is(lSecondResponse, "hello response");
-//     t.is(lResponse["mCachedRequests"].size, 2);
-//
-//     lResponse.Stop();
-//     lRequest.Stop();
-// });
+test("Start, Stop, Start, Publish", async(t: ExecutionContext<TTestContext>): Promise<void> =>
+{
+    const lZmqPublisher: MockManager<zmq.Publisher> = t.context.PublisherMock;
+    const lResponseMock: MockManager<ZMQResponse.ZMQResponse> = t.context.ResponderMock;
+    const lPublisher: ZMQPublisher = new ZMQPublisher(EEndpoint.STATUS_UPDATES);
+
+    lPublisher.Start();
+    lPublisher.Stop();
+
+    lZmqPublisher.mock("bind", Promise.resolve());
+    lResponseMock.mock("Start", Promise.resolve());
+    lPublisher.Start();
+
+    const lSendMock: Sinon.SinonStub = lZmqPublisher.mock("send", Promise.resolve());
+    await lPublisher.Publish("myTopicA", "myFirstMessage");
+
+    t.is(lSendMock.callCount, 1);
+    t.deepEqual(lSendMock.getCall(0).args[0], ["myTopicA", EMessageType.PUBLISH, "1", "\"myFirstMessage\""]);
+    t.is(lPublisher["mMessageCaches"].size, 1);
+    t.is(lPublisher["mMessageCaches"].get("myTopicA")!.size, 1);
+    t.is(lPublisher["mTopicDetails"].size, 1);
+
+    lPublisher.Stop();
+});
+
+test.todo("Test error cases after ErrorEmitter added");

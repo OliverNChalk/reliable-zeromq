@@ -34,6 +34,8 @@ export class ZMQPublisher
     private readonly mPublisherEndpoint: EEndpoint;
     private mResponse: ZMQResponse;
 
+    private mHeartbeatTimeout: NodeJS.Timeout | undefined;
+
     public constructor(aEndpoint: EEndpoint)
     {
         this.mPublisherEndpoint = aEndpoint;
@@ -43,25 +45,22 @@ export class ZMQPublisher
 
     private CheckHeartbeats = async(): Promise<void> =>
     {
-        if (this.mPublisher)    // TODO: Is a publisher null-check better than IEngine parent class with mIsRunning?
+        this.mTopicDetails.forEach(async(aValue: TTopicDetails, aKey: string): Promise<void> =>
         {
-            this.mTopicDetails.forEach(async(aValue: TTopicDetails, aKey: string): Promise<void> =>
+            if (aValue.LatestMessageTimestamp + HEARTBEAT_INTERVAL <= Date.now())
             {
-                if (aValue.LatestMessageTimestamp + HEARTBEAT_INTERVAL <= Date.now())
-                {
-                    await this.mPublisher.send(
-                        [
-                            aKey,
-                            EMessageType.HEARTBEAT,
-                            aValue.LatestMessageNonce.toString(),
-                            "",
-                        ],
-                    );
-                }
-            });
+                await this.mPublisher.send(
+                    [
+                        aKey,
+                        EMessageType.HEARTBEAT,
+                        aValue.LatestMessageNonce.toString(),
+                        "",
+                    ],
+                );
+            }
+        });
 
-            setTimeout(this.CheckHeartbeats, HEARTBEAT_INTERVAL);
-        }
+        this.mHeartbeatTimeout = setTimeout(this.CheckHeartbeats, HEARTBEAT_INTERVAL);
     }
 
     private HandleRequest = (aMessage: string): Promise<string> =>
@@ -111,7 +110,7 @@ export class ZMQPublisher
             this.mTopicDetails.set(aTopic, lTopicDetails);
         }
 
-        const lMessageNonce: number = lTopicDetails.LatestMessageNonce++;
+        const lMessageNonce: number = ++lTopicDetails.LatestMessageNonce;
         const lMessage: string[] = [
             aTopic,
             EMessageType.PUBLISH,
@@ -141,5 +140,6 @@ export class ZMQPublisher
 
         this.mPublisher.close();
         delete(this.mPublisher);
+        clearTimeout(this.mHeartbeatTimeout!);
     }
 }
