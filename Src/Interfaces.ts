@@ -12,5 +12,5 @@ export type TEndpointAddresses =
 export interface IMessage
 {
       topic: string;
-      data: string;
+      data: any;
 }

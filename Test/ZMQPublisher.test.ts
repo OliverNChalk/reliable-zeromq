@@ -4,7 +4,7 @@ import anyTest, { ExecutionContext } from "ava";
 import * as Sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
-import { EEndpoint, HEARTBEAT_INTERVAL, PUBLISHER_CACHE_EXPIRY_MS } from "../Src/Constants";
+import { EEndpoint, HEARTBEAT_INTERVAL } from "../Src/Constants";
 import JSONBigInt from "../Src/Utils/JSONBigInt";
 import { EMessageType, ZMQPublisher } from "../Src/ZMQPublisher";
 import * as ZMQResponse from "../Src/ZMQResponse";
@@ -192,9 +192,9 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
     ];
     const lExpectedHeartbeats: string[][] =
     [
-        ["myTopicA", EMessageType.HEARTBEAT, "2", ""],
-        ["newTopicA", EMessageType.HEARTBEAT, "3", ""],
-        ["newTopic1", EMessageType.HEARTBEAT, "2", ""],
+        ["myTopicA", EMessageType.HEARTBEAT, "2", "\"\""],
+        ["newTopicA", EMessageType.HEARTBEAT, "3", "\"\""],
+        ["newTopic1", EMessageType.HEARTBEAT, "2", "\"\""],
     ];
 
     t.deepEqual(lHeartbeats, lExpectedHeartbeats);

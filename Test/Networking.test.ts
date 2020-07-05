@@ -1,15 +1,16 @@
 /* tslint:disable: no-string-literal */
-import anyTest, { ExecutionContext } from "ava";
 import type { TestInterface } from "ava";
+import anyTest, { ExecutionContext } from "ava";
 import * as sinon from "sinon";
-import { ImportMock, MockManager } from "ts-mock-imports";
-import * as zmq from "zeromq";
-import { MAXIMUM_LATENCY } from "../Src/Constants";
+import { ImportMock } from "ts-mock-imports";
+import { EEndpoint } from "../Src/Constants";
+import { Delay } from "../Src/Utils/Delay";
 import JSONBigInt from "../Src/Utils/JSONBigInt";
+import { ZMQPublisher } from "../Src/ZMQPublisher";
 import { ZMQRequest } from "../Src/ZMQRequest";
 import { ZMQResponse } from "../Src/ZMQResponse";
+import { ZMQSubscriber } from "../Src/ZMQSubscriber";
 
-type TAsyncIteratorResult = { value: any; done: boolean };
 type TTestContext =
 {
     ResponderEndpoint: string;
@@ -26,7 +27,7 @@ test.before((t: ExecutionContext<TTestContext>): void =>
 test.beforeEach((t: ExecutionContext<TTestContext>): void =>
 {
     t.context = {
-        ResponderEndpoint: "tcp://127.0.0.1:3000",
+        ResponderEndpoint: "tcp://127.0.0.1:3241",
         TestData: [
             {
                 a: 100n,
@@ -78,6 +79,7 @@ test.serial("ZMQRequest: Start, Send, Receive, Repeat", async(t: ExecutionContex
 
     const lPromiseResult: string = await lRequest.Send(JSONBigInt.Stringify(t.context.TestData));
     lExpected.data = t.context.TestData;
+
     t.deepEqual(JSONBigInt.Parse(lPromiseResult), lExpected);
 
     lRequest.Stop();
@@ -88,9 +90,8 @@ test.serial("ZMQRequest: Start, Send, Receive, Repeat", async(t: ExecutionContex
     });
 
     lRequest.Start();
-    const lNotThrowPromise: Promise<string> = lRequest.Send("this should not throw");
 
-    const lNotThrowResult: string = await lNotThrowPromise;
+    const lNotThrowResult: string = await lRequest.Send("this should not throw");
     lExpected.data = "this should not throw";
 
     t.deepEqual(JSONBigInt.Parse(lNotThrowResult), lExpected);
@@ -129,4 +130,113 @@ test.serial("ZMQResponse: Start, Receive, Repeat", async(t: ExecutionContext<TTe
 
     lResponse.Stop();
     lRequest.Stop();
+});
+
+test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestContext>): Promise<void> =>
+{
+    const lStatusUpdatePublisher: ZMQPublisher = new ZMQPublisher(EEndpoint.STATUS_UPDATES);
+    const lWeatherUpdatePublisher: ZMQPublisher = new ZMQPublisher(EEndpoint.WEATHER_UPDATES);
+    const lSubscriber: ZMQSubscriber = new ZMQSubscriber();
+
+    await lSubscriber.Start();
+    await lStatusUpdatePublisher.Start();
+    await lWeatherUpdatePublisher.Start();
+
+    type TTestDataResult =
+    {
+        [index in EEndpoint]: {
+            Publisher: ZMQPublisher;
+            Topics: {
+                [index: string]: {
+                    data: string[];
+                    result: string[];
+                };
+            };
+        };
+    };
+
+    const lTestDataResult: TTestDataResult =
+    {
+        [EEndpoint.STATUS_UPDATES]: {
+            Publisher: lStatusUpdatePublisher,
+            Topics: {},
+        },
+        [EEndpoint.WEATHER_UPDATES]: {
+            Publisher: lWeatherUpdatePublisher,
+            Topics: {},
+        },
+    };
+
+    lTestDataResult[EEndpoint.STATUS_UPDATES].Topics["TopicA"] = { data: ["myTestMessage"], result: [] };
+    lTestDataResult[EEndpoint.STATUS_UPDATES].Topics["TopicB"] = { data: ["myTestMessage"], result: [] };
+    lTestDataResult[EEndpoint.STATUS_UPDATES].Topics["TopicC"] = { data: ["myTestMessage"], result: [] };
+    lTestDataResult[EEndpoint.WEATHER_UPDATES].Topics["Sydney"] = { data: ["sunny"], result: [] };
+    lTestDataResult[EEndpoint.WEATHER_UPDATES].Topics["Newcastle"] = { data: ["cloudy"], result: [] };
+
+    const lSaveResult = (aEndpoint: EEndpoint, aTopic: string, aNonce: number, aMessage: string): void =>
+    {
+        lTestDataResult[aEndpoint].Topics[aTopic].result[aNonce - 1] = aMessage;
+    };
+
+    const lSubscribe = (aEndpoint: EEndpoint, aTopic: string): void =>
+    {
+        lSubscriber.Subscribe(aEndpoint, aTopic, (aMsg: string): void =>
+        {
+            lTestDataResult[aEndpoint].Publisher["mMessageCaches"].get(aTopic)!.forEach(
+            (aValue: string[], aKey: number): void =>
+            {
+                if (aValue[3] === aMsg)
+                {
+                    lSaveResult(aEndpoint, aTopic, aKey, aMsg);
+                }
+            });
+        });
+    };
+
+    lSubscribe(EEndpoint.STATUS_UPDATES, "TopicA");
+    lSubscribe(EEndpoint.STATUS_UPDATES, "TopicB");
+    lSubscribe(EEndpoint.STATUS_UPDATES, "TopicC");
+    lSubscribe(EEndpoint.WEATHER_UPDATES, "Newcastle");
+    lSubscribe(EEndpoint.WEATHER_UPDATES, "Sydney");
+
+    for (const aEndpoint in lTestDataResult)
+    {
+        const lPublisher: ZMQPublisher = lTestDataResult[aEndpoint].Publisher;
+        for (const aTopic in lTestDataResult[aEndpoint].Topics)
+        {
+            for (const aData of lTestDataResult[aEndpoint].Topics[aTopic].data)
+            {
+                await lPublisher.Publish(aTopic, aData);
+            }
+        }
+    }
+
+    while
+    (
+            lSubscriber["mEndpoints"].get(EEndpoint.STATUS_UPDATES)!.TopicEntries.get("TopicA")!.Nonce < 1
+        ||  lSubscriber["mEndpoints"].get(EEndpoint.STATUS_UPDATES)!.TopicEntries.get("TopicB")!.Nonce < 1
+        ||  lSubscriber["mEndpoints"].get(EEndpoint.STATUS_UPDATES)!.TopicEntries.get("TopicC")!.Nonce < 1
+        ||  lSubscriber["mEndpoints"].get(EEndpoint.WEATHER_UPDATES)!.TopicEntries.get("Sydney")!.Nonce < 1
+        ||  lSubscriber["mEndpoints"].get(EEndpoint.WEATHER_UPDATES)!.TopicEntries.get("Newcastle")!.Nonce < 1
+    )
+    {
+        await Delay(100);
+    }
+
+    for (const aEndpoint in lTestDataResult)
+    {
+        for (const aTopic in lTestDataResult[aEndpoint].Topics)
+        {
+            const lTestData: string[] = lTestDataResult[aEndpoint].Topics[aTopic].data;
+            const lTestResult: string[] = lTestDataResult[aEndpoint].Topics[aTopic].result;
+            for (let i: number = 0; i < lTestData.length; ++i)
+            {
+                t.is(lTestData[i], JSONBigInt.Parse(lTestResult[i]));
+            }
+        }
+    }
+
+    lSubscriber.Stop();
+    lStatusUpdatePublisher.Stop();
+    lWeatherUpdatePublisher.Stop();
 });

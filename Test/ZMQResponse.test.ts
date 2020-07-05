@@ -6,7 +6,6 @@ import Sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
 import { Delay } from "../Src/Utils/Delay";
-import { ZMQRequest } from "../Src/ZMQRequest";
 import { ZMQResponse } from "../Src/ZMQResponse";
 
 type TAsyncIteratorResult = { value: any; done: boolean };
@@ -121,39 +120,6 @@ test.serial("Start, Receive, Repeat", async(t: ExecutionContext<TTestContext>): 
 
     lResponse.Stop();
 });
-
-// test.serial("Networked: Start, Receive, Repeat", async(t: ExecutionContext<TTestContext>): Promise<void> =>
-// {
-//     t.context.RouterMock.restore();
-//     let lResponder = async(aMsg: string): Promise<string> => "world";
-//     const lResponderRouter = (aMsg: string): Promise<string> =>
-//     {
-//         return lResponder(aMsg);    // Necessary so we can update lResponder throughout
-//     };
-//
-//     const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
-//     const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, lResponderRouter);
-//
-//     lRequest.Start();
-//
-//     await lResponse.Start();
-//     const lFirstResponse: string = await lRequest.Send("hello");
-//
-//     t.is(lFirstResponse, "world");
-//     t.is(lResponse["mCachedRequests"].size, 1);
-//
-//     lResponse.Stop();
-//     await lResponse.Start();
-//
-//     lResponder = async(aMsg: string): Promise<string> => aMsg + " response";
-//     const lSecondResponse: string = await lRequest.Send("hello");
-//
-//     t.is(lSecondResponse, "hello response");
-//     t.is(lResponse["mCachedRequests"].size, 2);
-//
-//     lResponse.Stop();
-//     lRequest.Stop();
-// });
 
 test.todo("Multiple Requests Don't Block");
 test.todo("Test error cases after ErrorEmitter added");

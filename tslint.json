@@ -46,6 +46,7 @@
         "no-magic-numbers": false,
         "no-string-literal": true,
         "no-trailing-whitespace": true,
+        "no-unused-variable": true,
         "one-variable-per-declaration": [true, "ignore-for-loop"],
         "ordered-imports": true,
         "prefer-const": true,

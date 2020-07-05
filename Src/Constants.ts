@@ -4,14 +4,20 @@ import { TEndpointAddressList } from "./Interfaces";
 export enum EEndpoint
 {
     STATUS_UPDATES = "STATUS_UPDATES",
+    WEATHER_UPDATES = "WEATHER_UPDATES",
 }
 
 export const DUMMY_ENDPOINTS: TEndpointAddressList =
 {
       STATUS_UPDATES: {
-          PublisherAddress: "tcp://127.0.0.1:3000",
-          RequestAddress: "tcp://127.0.0.1:3001",
-          ServiceAddress: "tcp://127.0.0.1:3002",
+          PublisherAddress: "tcp://127.0.0.1:3242",
+          RequestAddress: "tcp://127.0.0.1:3243",
+          ServiceAddress: "tcp://127.0.0.1:3244",
+      },
+      WEATHER_UPDATES: {
+          PublisherAddress: "tcp://127.0.0.1:3342",
+          RequestAddress: "tcp://127.0.0.1:3343",
+          ServiceAddress: "tcp://127.0.0.1:3344",
       },
 };
 

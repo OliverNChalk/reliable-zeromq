@@ -1,16 +1,16 @@
 import * as zmq from "zeromq";
 import { DUMMY_ENDPOINTS, EEndpoint } from "./Constants";
-import { IMessage, TEndpointAddresses } from "./Interfaces";
+import { TEndpointAddresses } from "./Interfaces";
 import JSONBigInt from "./Utils/JSONBigInt";
 import { EMessageType } from "./ZMQPublisher";
 import { ZMQRequest } from "./ZMQRequest";
 
-export type MessageCallback<P> = (aError: Error | undefined, aMessage: IMessage) => void;
+export type MessageCallback = (aMessage: string) => void;   // TODO: Conflicts with our "any" lMessage type
 
 type TTopicEntry =
 {
-    Nonce: bigint;
-    Callbacks: Map<bigint, MessageCallback<any>>;
+    Nonce: number;
+    Callbacks: Map<number, MessageCallback>;
 };
 
 type TEndpointEntry =
@@ -23,9 +23,9 @@ type TEndpointEntry =
 export class ZMQSubscriber
 {
     private mEndpoints: Map<EEndpoint, TEndpointEntry> = new Map<EEndpoint, TEndpointEntry>();
-    private mTokenId: bigint = 0n;
+    private mTokenId: number = 0;
 
-    private get SubscriptionId(): bigint
+    private get SubscriptionId(): number
     {
         return ++this.mTokenId;
     }
@@ -47,16 +47,16 @@ export class ZMQSubscriber
         lSocketEntry.Requester.Start();
         this.mEndpoints.set(aEndpoint, lSocketEntry);
 
-        for await (const [topic, type, nonce, msg] of lSubSocket)
+        for await (const buffers of lSubSocket)
         {
-            const lTopic: string = topic.toString();
-            const lType: EMessageType = type.toString() as EMessageType;
-            const lNonce: bigint = BigInt(nonce.toString());
-            const lMessage: any = JSONBigInt.Parse(msg.toString());
+            const lTopic: string = buffers[0].toString();
+            const lType: EMessageType = buffers[1].toString() as EMessageType;
+            const lNonce: number = Number(buffers[2].toString());
+            const lMessage: any = JSONBigInt.Parse(buffers[3].toString());
 
             if (lType === EMessageType.HEARTBEAT)
             {
-                const lNextMessageNonce: bigint = lNonce + 1n;
+                const lNextMessageNonce: number = lNonce + 1;
                 this.ProcessNonce(aEndpoint, lTopic, lNextMessageNonce);
             }
             else
@@ -65,14 +65,14 @@ export class ZMQSubscriber
                 if (this.ProcessNonce(aEndpoint, lTopic, lNonce))
                 {
                     // Forwards messages to their relevant subscriber
-                    const lTopicCallbacks: Map<bigint, MessageCallback<any>>
+                    const lTopicCallbacks: Map<number, MessageCallback>
                         = lSocketEntry.TopicEntries.get(lTopic)!.Callbacks;
 
                     if (lTopicCallbacks.size > 0)
                     {
-                        lTopicCallbacks.forEach((aCallback: MessageCallback<any>): void =>
+                        lTopicCallbacks.forEach((aCallback: MessageCallback): void =>
                         {
-                            aCallback(undefined, { topic: lTopic, data: lMessage });
+                            aCallback(lMessage);
                         });
                     }
                     else
@@ -84,12 +84,12 @@ export class ZMQSubscriber
         }
     }
 
-    private ProcessNonce(aEndpoint: EEndpoint, aTopic: string, aNonce: bigint): boolean
+    private ProcessNonce(aEndpoint: EEndpoint, aTopic: string, aNonce: number): boolean
     {
         const lEndpoint: TEndpointEntry = this.mEndpoints.get(aEndpoint)!;
         const lTopicEntry: TTopicEntry = this.mEndpoints.get(aEndpoint)!.TopicEntries.get(aTopic)!;
-        const lLastSeenNonce: bigint = lTopicEntry.Nonce;
-        const lExpectedNonce: bigint = lLastSeenNonce + 1n;
+        const lLastSeenNonce: number = lTopicEntry.Nonce;
+        const lExpectedNonce: number = lLastSeenNonce + 1;
         let lCallCallback: boolean = true;
 
         if (aNonce === lExpectedNonce)
@@ -99,7 +99,7 @@ export class ZMQSubscriber
         else if (aNonce > lExpectedNonce)
         {
             const lMissingNonces: string[] = [];
-            for (let i: bigint = lExpectedNonce; i < aNonce; ++i)
+            for (let i: number = lExpectedNonce; i < aNonce; ++i)
             {
                 lMissingNonces.push(i.toString());
             }
@@ -130,9 +130,9 @@ export class ZMQSubscriber
         lParsedMessages.forEach((aParsedMessage: string): void =>
         {
             this.mEndpoints.get(aEndpoint)!.TopicEntries.get(aTopic)!.Callbacks.forEach(
-            (aCallback: MessageCallback<any>): void =>
+            (aCallback: MessageCallback): void =>
             {
-                aCallback(undefined, { topic: aTopic, data: aParsedMessage });
+                aCallback(aParsedMessage[3]);   // TODO: Use Enum, not magic numbers
             });
         });
     }
@@ -163,12 +163,12 @@ export class ZMQSubscriber
         this.mEndpoints.clear();
     }
 
-    public async Subscribe<P>(aEndpoint: EEndpoint, aTopic: string, aCallback: MessageCallback<P>): Promise<bigint>
+    public Subscribe(aEndpoint: EEndpoint, aTopic: string, aCallback: MessageCallback): number
     {
         const lEndpoint: TEndpointEntry = this.mEndpoints.get(aEndpoint)!;
         const lExistingTopic: TTopicEntry | undefined = lEndpoint.TopicEntries.get(aTopic);
 
-        const lSubscriptionId: bigint = this.SubscriptionId;
+        const lSubscriptionId: number = this.SubscriptionId;
         if (lExistingTopic)
         {
             lExistingTopic.Callbacks.set(lSubscriptionId, aCallback);
@@ -179,7 +179,7 @@ export class ZMQSubscriber
             lEndpoint.TopicEntries.set(
                 aTopic,
                 {
-                    Nonce: 0n,
+                    Nonce: 0,
                     Callbacks: new Map([[lSubscriptionId, aCallback]]), // Initialize map with new callback and callback id
                 },
             );
@@ -188,7 +188,7 @@ export class ZMQSubscriber
         return lSubscriptionId;
     }
 
-    public Unsubscribe(aEndpoint: EEndpoint, aTopic: string, aSubscriptionId: bigint): void
+    public Unsubscribe(aEndpoint: EEndpoint, aTopic: string, aSubscriptionId: number): void
     {
         // TODO: Can be driven using just aSubscriptionId
         // TODO: Remove topics that are no longer used

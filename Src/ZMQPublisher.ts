@@ -19,6 +19,10 @@ export enum EMessageType
     PUBLISH = "PUBLISH",
 }
 
+export type TEncodedMessage = [string, string, string];
+export type THeartbeatMessage = [string, EMessageType.HEARTBEAT, number, "\"\""];
+export type TPublishMessage = [string, EMessageType.PUBLISH, number, any];
+
 type TTopicDetails =
 {
     LatestMessageNonce: number;
@@ -54,7 +58,7 @@ export class ZMQPublisher
                         aKey,
                         EMessageType.HEARTBEAT,
                         aValue.LatestMessageNonce.toString(),
-                        "",
+                        "\"\"",
                     ],
                 );
             }
