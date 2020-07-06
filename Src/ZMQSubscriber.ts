@@ -142,7 +142,7 @@ export class ZMQSubscriber
         });
     }
 
-    public async Start(): Promise<void>
+    public Start(): void
     {
         // Connect to all publishers on start
         const lEndpoints: string[] = Object.values(EEndpoint);

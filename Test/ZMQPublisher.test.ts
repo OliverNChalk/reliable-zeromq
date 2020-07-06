@@ -9,14 +9,10 @@ import JSONBigInt from "../Src/Utils/JSONBigInt";
 import { EMessageType, ZMQPublisher } from "../Src/ZMQPublisher";
 import * as ZMQResponse from "../Src/ZMQResponse";
 
-type TAsyncIteratorResult = { value: any; done: boolean };
 type TTestContext =
 {
-    PublisherEndpoint: string;
     PublisherMock: MockManager<zmq.Publisher>;
     ResponderMock: MockManager<ZMQResponse.ZMQResponse>;
-    SUTCallback: (aMessage: TAsyncIteratorResult) => void;
-    SendToReceiver: (aMessage: string[]) => void;
     TestData: any[];
 };
 
@@ -29,35 +25,13 @@ test.before((t: ExecutionContext<TTestContext>): void =>
 
 test.beforeEach((t: ExecutionContext<TTestContext>): void =>
 {
-    // tslint:disable-next-line:typedef
-    const lNewIterator = (() =>
-    {
-        return {
-            async next(): Promise<TAsyncIteratorResult>
-            {
-                return new Promise((resolve: (aValue: TAsyncIteratorResult) => void): void =>
-                {
-                    t.context.SUTCallback = resolve;
-                });
-            },
-        };
-    })();
-
     const lResponderMock: MockManager<ZMQResponse.ZMQResponse>
         = ImportMock.mockClass<ZMQResponse.ZMQResponse>(ZMQResponse, "ZMQResponse");
     const lPublisherMock: MockManager<zmq.Publisher> = ImportMock.mockClass<zmq.Publisher>(zmq, "Publisher");
-    // @ts-ignore
-    lPublisherMock.mock(Symbol.asyncIterator, lNewIterator);
 
     t.context = {
-        PublisherEndpoint: "tcp://127.0.0.1:3002",
         PublisherMock: lPublisherMock,
         ResponderMock: lResponderMock,
-        SUTCallback: null!,
-        SendToReceiver: (aMessage: string[]): void =>
-        {
-            t.context.SUTCallback({ value: aMessage, done: false });
-        },
         TestData: [
             {
                 a: 100n,
