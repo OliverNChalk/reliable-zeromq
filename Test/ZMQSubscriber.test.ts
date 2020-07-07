@@ -401,6 +401,7 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
 
     await WaitFor((): boolean => { return lResults.length === 4; });
 
+    t.is(lSendMock.getCall(0).args[0], JSONBigInt.Stringify(["TopicToTest", 1, 2, 3]));
     t.is(lResults[0], "Hello4");    // Initial message first, followed by recovered messages in order
     t.is(lResults[1], "Hello1");
     t.is(lResults[2], "Hello2");
@@ -415,6 +416,7 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
     lSubCallbacks[3]({ value: ["Sydney", EMessageType.HEARTBEAT, "5", ""], done: false });
     await WaitFor((): boolean => { return lResults.length === 9; });
 
+    t.is(lSendMock.getCall(1).args[0], JSONBigInt.Stringify(["Sydney", 1, 2, 3, 4, 5]));
     t.is(lResults[4], "Rainy");
     t.is(lResults[5], "Misty");
     t.is(lResults[6], "Cloudy");

@@ -110,8 +110,11 @@ export class ZMQSubscriber
         }
         else if (aNonce > lExpectedNonce)
         {
+            const lStart: number = lExpectedNonce === 0 ? 1 : lExpectedNonce;   // No message zero in this protocol
+            const lEnd: number = aHeartbeat ? aNonce : aNonce - 1;
+
             const lMissingNonces: number[] = [];
-            for (let i: number = lExpectedNonce; i < aNonce; ++i)
+            for (let i: number = lStart; i <= lEnd; ++i)
             {
                 lMissingNonces.push(i);
             }
@@ -135,9 +138,8 @@ export class ZMQSubscriber
     ): Promise<void>
     {
         const lFormattedRequest: TRecoveryRequest = [aTopic, ...aMessageIds];   // PERF: Array manipulation
-        lFormattedRequest.unshift(aTopic);
 
-        const lMissingMessages: string = await aEndpointEntry.Requester.Send(JSONBigInt.Stringify(aMessageIds));
+        const lMissingMessages: string = await aEndpointEntry.Requester.Send(JSONBigInt.Stringify(lFormattedRequest));
         const lParsedMessages: TRecoveryResponse = JSONBigInt.Parse(lMissingMessages.toString());
 
         lParsedMessages.forEach((aParsedMessage: string[]): void =>
