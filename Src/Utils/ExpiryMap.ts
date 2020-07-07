@@ -62,7 +62,7 @@ export default class ExpiryMap<K, V> extends Map<K, V>
 
     public set(key: K, value: V): this
     {
-        // KNOWN ISSUE: Overwriting an already set value will not reset the expiry
+        // KNOWN ISSUE: Overwriting an already set value will not reset the expiry. Does not affect reliable-zeromq functionality
         super.set(key, value);
 
         this.AddKeyToQueue(key);

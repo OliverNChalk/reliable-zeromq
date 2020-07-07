@@ -1,10 +1,10 @@
 {
-  "name": "reliable-zmq",
-  "version": "0.1.1",
+  "name": "reliable-zeromq",
+  "version": "0.1.0",
   "description": "A collection of reliable zeromq messaging constructs",
-  "main": "Gulpfile.js",
+  "main": "Dist/Src/Index.js",
+  "types": "Dist/Src/Index.d.ts",
   "dependencies": {
-    "lodash.clonedeep": "4.5.0",
     "typescript-collections": "1.3.3",
     "zeromq": "6.0.0-beta.6"
   },
@@ -24,24 +24,27 @@
   },
   "scripts": {
     "test": "gulp test",
+    "build": "gulp build",
     "tslint-check": "tslint --project .",
     "tslint-fix": "tslint --project . --fix"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OliverNChalk/reliable-zeromq.git"
   },
   "husky": {
     "hooks": {
       "pre-commit": "gulp lint-check"
     }
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/OliverNChalk/reliable-zeromq.git"
-  },
+  "prepublishOnly": "gulp build",
   "keywords": [
+    "zmq",
     "zeromq",
+    "ØMQ",
     "reliable",
     "pubsub",
-    "request",
-    "reseponse"
+    "request-response"
   ],
   "author": "Oliver Chalk",
   "license": "UNLICENSED",
