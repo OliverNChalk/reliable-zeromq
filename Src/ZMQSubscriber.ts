@@ -5,6 +5,8 @@ import JSONBigInt from "./Utils/JSONBigInt";
 import { EMessageType, TPublisherMessage } from "./ZMQPublisher";
 import { ZMQRequest } from "./ZMQRequest";
 
+const UNKNOWN_SUBSCRIPTION: string = "ERROR: CANNOT UNSUBSCRIBE FROM UNDEFINED SUBSCRIPTION";
+
 export type SubscriptionCallback = (aMessage: string) => void;
 
 type TTopicEntry =
@@ -20,9 +22,16 @@ type TEndpointEntry =
     TopicEntries: Map<string, TTopicEntry>;
 };
 
+type TInternalSubscription =
+{
+    Endpoint: EEndpoint;
+    Topic: string;
+};
+
 export class ZMQSubscriber
 {
     private mEndpoints: Map<EEndpoint, TEndpointEntry> = new Map<EEndpoint, TEndpointEntry>();
+    private mSubscriptions: Map<number, TInternalSubscription> = new Map();
     private mTokenId: number = 0;
 
     private get SubscriptionId(): number
@@ -186,18 +195,30 @@ export class ZMQSubscriber
             );
         }
 
+        this.mSubscriptions.set(lSubscriptionId, { Endpoint: aEndpoint, Topic: aTopic });
+
         return lSubscriptionId;
     }
 
-    public Unsubscribe(aEndpoint: EEndpoint, aTopic: string, aSubscriptionId: number): void
+    public Unsubscribe(aSubscriptionId: number): void
     {
-        // TODO: Can be driven using just aSubscriptionId
-        // TODO: Remove topics that are no longer used
-        const lEndpoint: TEndpointEntry = this.mEndpoints.get(aEndpoint)!;
-        lEndpoint.Subscriber.unsubscribe(aTopic);     // TODO: What happens if we unsubscribe from a topic we never subscribed to?
+        const lInternalSubscription: TInternalSubscription | undefined = this.mSubscriptions.get(aSubscriptionId);
 
-        const lTopicEntry: TTopicEntry = lEndpoint.TopicEntries.get(aTopic)!;   // TODO: We crash if we try to unsubscribe from a non-existent topic
+        if (!lInternalSubscription)
+        {
+            throw new Error(UNKNOWN_SUBSCRIPTION);
+        }
 
+        const lEndpoint: TEndpointEntry = this.mEndpoints.get(lInternalSubscription.Endpoint)!;
+
+        const lTopicEntry: TTopicEntry = lEndpoint.TopicEntries.get(lInternalSubscription.Topic)!;
         lTopicEntry.Callbacks.delete(aSubscriptionId);
+
+        if (lTopicEntry.Callbacks.size === 0)
+        {
+            lEndpoint.Subscriber.unsubscribe(lInternalSubscription.Topic);
+            lEndpoint.TopicEntries.delete(lInternalSubscription.Topic);
+        }
     }
+
 }

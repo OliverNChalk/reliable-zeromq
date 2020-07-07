@@ -55,7 +55,15 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
     // SETUP
     // const clock: Sinon.SinonFakeTimers = Sinon.useFakeTimers();
 
-    type TTopic = { topic: string; test: { publish: (aZmqMessage: string[]) => void; data: string; result: string }[] };
+    type TTopic = {
+        topic: string;
+        subId: number;
+        test: {
+            publish: (aZmqMessage: string[]) => void;
+            data: string;
+            result: string;
+        }[];
+    };
     type TTestDataResult = { [index in EEndpoint]: TTopic[] };
 
     const lTestDataResult: TTestDataResult =
@@ -68,13 +76,21 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
     const lWeatherTopics: TTopic[] = lTestDataResult[EEndpoint.WEATHER_UPDATES];
 
     lStatusTopics[0]
-        = { topic: "TopicA", test: [{ data: "myTopicAMessage", result: undefined!, publish: undefined! }] };
+        = { topic: "TopicA", subId: 0, test: [{ data: "myTopicAMessage", result: undefined!, publish: undefined! }] };
     lStatusTopics[1]
-        = { topic: "TopicB", test: [{ data: "myTopicBMessage", result: undefined!, publish: undefined! }] };
+        = { topic: "TopicB", subId: 0, test: [
+            { data: "myTopicBMessage1", result: undefined!, publish: undefined! },
+            { data: "myTopicBMessage2", result: undefined!, publish: undefined! },
+            { data: "myTopicBMessage3", result: undefined!, publish: undefined! },
+            { data: "myTopicBMessage4", result: undefined!, publish: undefined! },
+            { data: "myTopicBMessage5", result: undefined!, publish: undefined! },
+        ] };
     lStatusTopics[2]
-        = { topic: "TopicC", test: [{ data: "myTopicCMessage", result: undefined!, publish: undefined! }] };
-    lWeatherTopics[0] = { topic: "Sydney", test: [{ data: "Sunny", result: undefined!, publish: undefined! }] };
-    lWeatherTopics[1] = { topic: "Newcastle", test: [{ data: "Cloudy", result: undefined!, publish: undefined! }] };
+        = { topic: "TopicC", subId: 0, test: [{ data: "myTopicCMessage", result: undefined!, publish: undefined! }] };
+    lWeatherTopics[0]
+        = { topic: "Sydney", subId: 0, test: [{ data: "Sunny", result: undefined!, publish: undefined! }] };
+    lWeatherTopics[1]
+        = { topic: "Newcastle", subId: 0, test: [{ data: "Cloudy", result: undefined!, publish: undefined! }] };
 
     let lSoloPublisher: (aZmqMsg: string[]) => void = undefined!;
 
@@ -101,12 +117,13 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
             return aFunc({ value: aMsg, done: false });
         };
 
-        function InsertByCount(aEndpoint: EEndpoint, aCount: number, aInsert: (aZmqMessage: string[]) => void): void
+        function InsertByCount(aEndpoint: EEndpoint, aCount: number): void
         {
             const lTopics: TTopic[] = lTestDataResult[aEndpoint];
 
             let x: number = 0;
             let y: number = 0;
+            let incrementX: boolean = false;
 
             for (let i: number = 0; i < aCount; ++i)
             {
@@ -118,13 +135,35 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
                 }
                 else
                 {
-                    ++x;
+                    if (incrementX)
+                    {
+                        ++x;
+                        y = 0;
+                        incrementX = false;
+                    }
+                    else
+                    {
+                        incrementX = true;  // Let's us duplicate the last message and close the iterator
+                    }
                 }
             }
 
             if (lTopics[x])
             {
-                lTopics[x].test[y].publish = aInsert;
+                if (!incrementX)
+                {
+                    lTopics[x].test[y].publish = function firstTimePublish(aMsg: string[]): void
+                    {
+                        return aFunc({ value: aMsg, done: false });
+                    };
+                }
+                else
+                {
+                    lTopics[x].test[y].publish = function duplicatePublish(aMsg: string[]): void
+                    {
+                        return aFunc({ value: aMsg, done: false });
+                    };
+                }
             }
         }
 
@@ -138,10 +177,10 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
                 lSoloPublisher = lFunc;
                 break;
             case 4:
-                InsertByCount(EEndpoint.STATUS_UPDATES, aCount, lFunc);
+                InsertByCount(EEndpoint.STATUS_UPDATES, aCount);
                 break;
             case 5:
-                InsertByCount(EEndpoint.WEATHER_UPDATES, aCount, lFunc);
+                InsertByCount(EEndpoint.WEATHER_UPDATES, aCount);
                 break;
             default:
                 throw new Error("Unexpected call to create asyncIterator");
@@ -194,11 +233,12 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
 
     const lSubscribe = (aEndpoint: EEndpoint, aIndex: number): void =>
     {
-        const lTopic: string = lTestDataResult[aEndpoint][aIndex].topic;
+        const lTopic: TTopic = lTestDataResult[aEndpoint][aIndex];
         let lCallNumber: number = 0;
 
-        lSubscriber.Subscribe(aEndpoint, lTopic, (aMsg: string): void =>
+        lTopic.subId = lSubscriber.Subscribe(aEndpoint, lTopic.topic, (aMsg: string): void =>
         {
+            t.assert(lCallNumber < lTestDataResult[aEndpoint][aIndex].test.length);
             lTestDataResult[aEndpoint][aIndex].test[lCallNumber++].result = aMsg;
         });
     };
@@ -233,6 +273,19 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
                     (i + 1).toString(),
                     lTopic.test[i].data,
                 ]);
+
+                if (i + 1 === lTopic.test.length)
+                {
+                    // Duplicate final message to test drop handling
+                    const lOldPublisher: (aZmqMessage: string[]) => void = lTopic.test[i].publish;
+                    await WaitFor((): boolean => lTopic.test[i].publish !== lOldPublisher);
+                    lTopic.test[i].publish([
+                        lTopic.topic,
+                        EMessageType.PUBLISH,
+                        (i + 1).toString(),
+                        "DUPLICATE MESSAGE: IGNORE DATA",
+                    ]);
+                }
             }
         }
 
@@ -258,6 +311,26 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
 
         await setImmediate((): void => {});
     }
+
+    for (const aEndpoint in lTestDataResult)
+    {
+        const lTopics: TTopic[] = lTestDataResult[aEndpoint];
+
+        for (let aIndex: number = 0; aIndex < lTopics.length; ++aIndex)
+        {
+            const lTopic: TTopic = lTopics[aIndex];
+
+            lSubscriber.Unsubscribe(lTopic.subId);
+        }
+
+        t.is(lSubscriber["mEndpoints"].get(aEndpoint as EEndpoint)!.TopicEntries.size, 0);
+    }
+
+    t.throws((): void => { lSubscriber.Unsubscribe(0); });
+
 });
 
+test.todo("Recover Missing Messages");
+test.todo("Multiple Subscribers");
+test.todo("Multiple Callbacks");
 test.todo("Test error cases after ErrorEmitter added");
