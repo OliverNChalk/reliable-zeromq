@@ -20,6 +20,15 @@ export enum EMessageType
 }
 
 export type TPublisherMessage = [string, EMessageType, number, string];
+export enum EPublishMessage
+{
+    Topic,
+    MessageType,
+    Nonce,
+    Message,
+}
+export type TRecoveryRequest = [string, ...number[]];
+export type TRecoveryResponse = string[][];
 
 type TTopicDetails =
 {
@@ -67,12 +76,16 @@ export class ZMQPublisher
 
     private HandleRequest = (aMessage: string): Promise<string> =>
     {
-        const lRequest: string[] = JSONBigInt.Parse(aMessage);
-        const lTopic: string = lRequest.shift()!;   // PERF: Ouch!
-        const lDecodedRequest: number[] = lRequest.map((aValue: string): number => Number(aValue));
+        const lRequest: TRecoveryRequest = JSONBigInt.Parse(aMessage);
+        const lTopic: string = lRequest[0];   // PERF: Ouch!
+
+        const lDecodedRequest: number[] = [];
+        for (let i: number = 1; i < lRequest.length; ++i)
+        {
+            lDecodedRequest.push(Number(lRequest[i]));
+        }
 
         const lRequestedMessages: string[][] = [];
-
         if (this.mMessageCaches.has(lTopic))
         {
             for (let i: number = 0; i < lDecodedRequest.length; ++i)

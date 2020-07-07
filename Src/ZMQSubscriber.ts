@@ -2,7 +2,7 @@ import * as zmq from "zeromq";
 import { DUMMY_ENDPOINTS, EEndpoint } from "./Constants";
 import { TEndpointAddresses } from "./Interfaces";
 import JSONBigInt from "./Utils/JSONBigInt";
-import { EMessageType, TPublisherMessage } from "./ZMQPublisher";
+import { EMessageType, EPublishMessage, TPublisherMessage, TRecoveryRequest, TRecoveryResponse } from "./ZMQPublisher";
 import { ZMQRequest } from "./ZMQRequest";
 
 const UNKNOWN_SUBSCRIPTION: string = "ERROR: CANNOT UNSUBSCRIBE FROM UNDEFINED SUBSCRIPTION";
@@ -69,8 +69,7 @@ export class ZMQSubscriber
 
             if (lType === EMessageType.HEARTBEAT)
             {
-                const lNextMessageNonce: number = lNonce + 1;
-                this.ProcessNonce(aEndpoint, lTopic, lNextMessageNonce);
+                this.ProcessNonce(aEndpoint, lTopic, lNonce, true);
             }
             else
             {
@@ -97,12 +96,12 @@ export class ZMQSubscriber
         }
     }
 
-    private ProcessNonce(aEndpoint: EEndpoint, aTopic: string, aNonce: number): boolean
+    private ProcessNonce(aEndpoint: EEndpoint, aTopic: string, aNonce: number, aHeartbeat: boolean = false): boolean
     {
         const lEndpoint: TEndpointEntry = this.mEndpoints.get(aEndpoint)!;
         const lTopicEntry: TTopicEntry = this.mEndpoints.get(aEndpoint)!.TopicEntries.get(aTopic)!;
         const lLastSeenNonce: number = lTopicEntry.Nonce;
-        const lExpectedNonce: number = lLastSeenNonce + 1;
+        const lExpectedNonce: number = aHeartbeat ? lLastSeenNonce : lLastSeenNonce + 1;
         let lCallCallback: boolean = true;
 
         if (aNonce === lExpectedNonce)
@@ -111,10 +110,10 @@ export class ZMQSubscriber
         }
         else if (aNonce > lExpectedNonce)
         {
-            const lMissingNonces: string[] = [];
+            const lMissingNonces: number[] = [];
             for (let i: number = lExpectedNonce; i < aNonce; ++i)
             {
-                lMissingNonces.push(i.toString());
+                lMissingNonces.push(i);
             }
 
             this.RecoverMissingMessages(aEndpoint, aTopic, lEndpoint, lMissingNonces);
@@ -132,21 +131,21 @@ export class ZMQSubscriber
         aEndpoint: EEndpoint,
         aTopic: string,
         aEndpointEntry: TEndpointEntry,
-        aMessageIds: string[],
+        aMessageIds: number[],
     ): Promise<void>
     {
-        const lFormattedRequest: string[] = aMessageIds;
+        const lFormattedRequest: TRecoveryRequest = [aTopic, ...aMessageIds];   // PERF: Array manipulation
         lFormattedRequest.unshift(aTopic);
 
         const lMissingMessages: string = await aEndpointEntry.Requester.Send(JSONBigInt.Stringify(aMessageIds));
-        const lParsedMessages: string[] = JSONBigInt.Parse(lMissingMessages.toString());
+        const lParsedMessages: TRecoveryResponse = JSONBigInt.Parse(lMissingMessages.toString());
 
-        lParsedMessages.forEach((aParsedMessage: string): void =>
+        lParsedMessages.forEach((aParsedMessage: string[]): void =>
         {
             this.mEndpoints.get(aEndpoint)!.TopicEntries.get(aTopic)!.Callbacks.forEach(
             (aCallback: SubscriptionCallback): void =>
             {
-                aCallback(aParsedMessage[3]);   // TODO: Use Enum, not magic numbers
+                aCallback(aParsedMessage[EPublishMessage.Message]);
             });
         });
     }
@@ -210,9 +209,10 @@ export class ZMQSubscriber
         }
 
         const lEndpoint: TEndpointEntry = this.mEndpoints.get(lInternalSubscription.Endpoint)!;
-
         const lTopicEntry: TTopicEntry = lEndpoint.TopicEntries.get(lInternalSubscription.Topic)!;
+
         lTopicEntry.Callbacks.delete(aSubscriptionId);
+        this.mSubscriptions.delete(aSubscriptionId);
 
         if (lTopicEntry.Callbacks.size === 0)
         {

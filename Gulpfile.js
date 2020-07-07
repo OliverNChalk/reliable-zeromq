@@ -10,7 +10,7 @@ const SrcFolder   = `${RootFolder}/Src`;
 const TestFolder  = `${DistFolder}/Test`;
 
 const _TSC_       =  `${RootFolder}/node_modules/typescript/bin/tsc`;
-const _AVA_       = `node ${RootFolder}/node_modules/ava/cli.js \\"${DistFolder}/**/*.test.js\\"`;
+const _AVA_       = `node ${RootFolder}/node_modules/ava/cli.js`;
 const _NYC_       = `node ${RootFolder}/node_modules/nyc/bin/nyc.js --reporter=lcov ${_AVA_}`;
 const _TSLINT_    = `${RootFolder}/node_modules/tslint/bin/tslint`;
 
@@ -62,7 +62,15 @@ gulp.task("build", gulp.series(
 
 // ---------------------------------------------------------------------------------------------------------------------
 gulp.task("test", done => {
-    exec(`${_AVA_}`, {}, (error, sout, serr) => {
+    exec(`${_AVA_} "${DistFolder}/**/*.test.js"`, {}, (error, sout, serr) => {
+        serr && console.error(serr);
+        done(error);
+    }).stdout.pipe(process.stdout);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+gulp.task("test-network", done => {
+    exec(`${_AVA_} "${DistFolder}/**/*.network.js"`, {}, (error, sout, serr) => {
         serr && console.error(serr);
         done(error);
     }).stdout.pipe(process.stdout);
@@ -70,7 +78,7 @@ gulp.task("test", done => {
 
 // ---------------------------------------------------------------------------------------------------------------------
 gulp.task("coverage", done => {
-    exec(`${_NYC_}`, {}, (error, sout, serr) => {
+    exec(`${_NYC_} "${DistFolder}/**/*.test.js"`, {}, (error, sout, serr) => {
         serr && console.error(serr);
         done(error);
     }).stdout.pipe(process.stdout);

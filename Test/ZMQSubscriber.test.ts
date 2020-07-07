@@ -1,12 +1,12 @@
 /* tslint:disable: no-string-literal */
 import type { TestInterface } from "ava";
 import anyTest, { ExecutionContext } from "ava";
-import * as Sinon from "sinon";
+import sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
 import { EEndpoint } from "../Src/Constants";
 import JSONBigInt from "../Src/Utils/JSONBigInt";
-import { EMessageType } from "../Src/ZMQPublisher";
+import { EMessageType, TRecoveryResponse } from "../Src/ZMQPublisher";
 import * as ZMQRequest from "../Src/ZMQRequest";
 import { ZMQSubscriber } from "../Src/ZMQSubscriber";
 
@@ -18,6 +18,21 @@ type TTestContext =
 };
 
 const test: TestInterface<TTestContext> = anyTest as TestInterface<TTestContext> ;
+
+async function WaitFor(aCondition: () => boolean): Promise<void>
+{
+    let lIteration: number = 0;
+    while (!aCondition() && lIteration < 100)
+    {
+        await setImmediate((): void => {});
+        ++lIteration;
+    }
+
+    if (lIteration === 100)
+    {
+        throw new Error("MAX WaitFor Iterations Reached");
+    }
+}
 
 test.before((t: ExecutionContext<TTestContext>): void =>
 {
@@ -46,7 +61,7 @@ test.beforeEach((t: ExecutionContext<TTestContext>): void =>
 
 test.afterEach((t: ExecutionContext<TTestContext>): void =>
 {
-    Sinon.restore();
+    sinon.restore();
     ImportMock.restore();
 });
 
@@ -249,14 +264,6 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
     lSubscribe(EEndpoint.WEATHER_UPDATES, 0);
     lSubscribe(EEndpoint.WEATHER_UPDATES, 1);
 
-    async function WaitFor(aCondition: () => boolean): Promise<void>
-    {
-        while (!aCondition())
-        {
-            await setImmediate((): void => {});
-        }
-    }
-
     for (const aEndpoint in lTestDataResult)
     {
         const lTopics: TTopic[] = lTestDataResult[aEndpoint];
@@ -330,7 +337,140 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
 
 });
 
-test.todo("Recover Missing Messages");
-test.todo("Multiple Subscribers");
-test.todo("Multiple Callbacks");
+test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestContext>): Promise<void> =>
+{
+    const lSubCallbacks: ((aValue: TAsyncIteratorResult) => void)[] = [];
+    const lNewIterator = (aValue: TAsyncIteratorResult): { next(): Promise<TAsyncIteratorResult> } =>
+    {
+        return {
+            async next(): Promise<TAsyncIteratorResult>
+            {
+                return new Promise((resolve: (aValue: TAsyncIteratorResult) => void): void =>
+                {
+                    lSubCallbacks.push(resolve);
+                });
+            },
+        };
+    };
+
+    const lZmqSubscriberMock: MockManager<zmq.Subscriber> = ImportMock.mockClass<zmq.Subscriber>(zmq, "Subscriber");
+    // @ts-ignore
+    const lIteratorStub: Sinon.SinonStub = lZmqSubscriberMock.mock(Symbol.asyncIterator, lNewIterator);
+    lIteratorStub.callsFake(lNewIterator);
+
+    const lSubscriber: ZMQSubscriber = new ZMQSubscriber();
+
+    const lSubscriptionIds: number[] = [];
+    const lResults: string[] = [];
+
+    lSubscriber.Start();
+    lSubscriptionIds[0] = lSubscriber.Subscribe(
+        EEndpoint.STATUS_UPDATES,
+        "TopicToTest",
+        (aMsg: string): void => { lResults.push(aMsg); },
+    );
+    lSubscriptionIds[1] = lSubscriber.Subscribe(
+        EEndpoint.WEATHER_UPDATES,
+        "Sydney",
+        (aMsg: string): void => { lResults.push(aMsg); },
+    );
+
+    const lRequestMock: MockManager<ZMQRequest.ZMQRequest> = t.context.RequestMock;
+    const lSendMock: sinon.SinonStub = lRequestMock.mock("Send");
+
+    const lStatusResponse: TRecoveryResponse =
+    [
+        ["TopicToTest", EMessageType.PUBLISH, "1", "Hello1"],
+        ["TopicToTest", EMessageType.PUBLISH, "2", "Hello2"],
+        ["TopicToTest", EMessageType.PUBLISH, "3", "Hello3"],
+    ];
+    const lWeatherResponse: TRecoveryResponse =
+    [
+        ["Sydney", EMessageType.PUBLISH, "1", "Rainy"],
+        ["Sydney", EMessageType.PUBLISH, "2", "Misty"],
+        ["Sydney", EMessageType.PUBLISH, "3", "Cloudy"],
+        ["Sydney", EMessageType.PUBLISH, "4", "Sunny"],
+        ["Sydney", EMessageType.PUBLISH, "5", "Overcast"],
+    ];
+    lSendMock
+        .onCall(0).returns(Promise.resolve(JSONBigInt.Stringify(lStatusResponse)))
+        .onCall(1).returns(Promise.resolve(JSONBigInt.Stringify(lWeatherResponse)));
+
+    await WaitFor((): boolean => lSubCallbacks[0] !== undefined);
+    lSubCallbacks[0]({ value: ["TopicToTest", EMessageType.PUBLISH, "4", "Hello4"], done: false });
+
+    await WaitFor((): boolean => { return lResults.length === 4; });
+
+    t.is(lResults[0], "Hello4");    // Initial message first, followed by recovered messages in order
+    t.is(lResults[1], "Hello1");
+    t.is(lResults[2], "Hello2");
+    t.is(lResults[3], "Hello3");
+
+    lSubCallbacks[1]({ value: ["Sydney", EMessageType.HEARTBEAT, "0", ""], done: false });
+
+    await setImmediate((): void => {});
+    t.is(lSubscriber["mEndpoints"].get(EEndpoint.WEATHER_UPDATES)!.TopicEntries.get("Sydney")!.Nonce, 0);
+
+    await WaitFor((): boolean => { return lSubCallbacks[3] !== undefined; });
+    lSubCallbacks[3]({ value: ["Sydney", EMessageType.HEARTBEAT, "5", ""], done: false });
+    await WaitFor((): boolean => { return lResults.length === 9; });
+
+    t.is(lResults[4], "Rainy");
+    t.is(lResults[5], "Misty");
+    t.is(lResults[6], "Cloudy");
+    t.is(lResults[7], "Sunny");
+    t.is(lResults[8], "Overcast");
+
+    lSubscriptionIds[2] = lSubscriber.Subscribe(
+        EEndpoint.WEATHER_UPDATES,
+        "Sydney",
+        (aMsg: string): void => { lResults.push(aMsg); },
+    );
+
+    t.is(lSubscriber["mSubscriptions"].size, 3);
+    t.is(lSubscriber["mEndpoints"].get(EEndpoint.WEATHER_UPDATES)!.TopicEntries.get("Sydney")!.Callbacks.size, 2);
+    t.is(lResults.length, 9);
+
+    await WaitFor((): boolean => { return lSubCallbacks[4] !== undefined; });
+    lSubCallbacks[4]({ value: ["Sydney", EMessageType.PUBLISH, "5", "Overcast"], done: false });
+    await WaitFor((): boolean => { return lSubCallbacks[5] !== undefined; });
+    lSubCallbacks[5]({ value: ["Sydney", EMessageType.PUBLISH, "4", "Sunny"], done: false });
+    await WaitFor((): boolean => { return lSubCallbacks[6] !== undefined; });
+    lSubCallbacks[6]({ value: ["Sydney", EMessageType.PUBLISH, "3", "Cloudy"], done: false });
+    await WaitFor((): boolean => { return lSubCallbacks[7] !== undefined; });
+    lSubCallbacks[7]({ value: ["Sydney", EMessageType.HEARTBEAT, "2", ""], done: false });
+    await WaitFor((): boolean => { return lSubCallbacks[8] !== undefined; });
+    lSubCallbacks[8]({ value: ["Sydney", EMessageType.HEARTBEAT, "5", ""], done: false });
+    await WaitFor((): boolean => { return lSubCallbacks[9] !== undefined; });
+    lSubCallbacks[9]({ value: ["Sydney", EMessageType.HEARTBEAT, "4", ""], done: false });
+    await WaitFor((): boolean => { return lSubCallbacks[10] !== undefined; });
+    lSubCallbacks[10]({ value: ["Sydney", EMessageType.HEARTBEAT, "3", ""], done: false });
+
+    t.is(lResults.length, 9);
+
+    await WaitFor((): boolean => { return lSubCallbacks[11] !== undefined; });
+    lSubCallbacks[11]({ value: ["Sydney", EMessageType.PUBLISH, "6", "NewWeather"], done: false });
+    await WaitFor((): boolean => { return lResults.length > 9; });
+
+    t.is(lResults[9], "NewWeather");
+    t.is(lResults[10], "NewWeather");
+
+    t.is(lSubscriber["mSubscriptions"].size, 3);
+    t.is(lSubscriber["mEndpoints"].get(EEndpoint.STATUS_UPDATES)!.TopicEntries.get("TopicToTest")!.Callbacks.size, 1);
+    t.is(lSubscriber["mEndpoints"].get(EEndpoint.WEATHER_UPDATES)!.TopicEntries.get("Sydney")!.Callbacks.size, 2);
+
+    lSubscriber.Unsubscribe(lSubscriptionIds[0]);
+    lSubscriber.Unsubscribe(lSubscriptionIds[1]);
+
+    t.is(lSubscriber["mSubscriptions"].size, 1);
+    t.is(lSubscriber["mEndpoints"].get(EEndpoint.STATUS_UPDATES)!.TopicEntries.size, 0);
+    t.is(lSubscriber["mEndpoints"].get(EEndpoint.WEATHER_UPDATES)!.TopicEntries.get("Sydney")!.Callbacks.size, 1);
+
+    lSubscriber.Unsubscribe(lSubscriptionIds[2]);
+
+    t.is(lSubscriber["mSubscriptions"].size, 0);
+    t.is(lSubscriber["mEndpoints"].get(EEndpoint.STATUS_UPDATES)!.TopicEntries.size, 0);
+    t.is(lSubscriber["mEndpoints"].get(EEndpoint.WEATHER_UPDATES)!.TopicEntries.size, 0);
+});
+
 test.todo("Test error cases after ErrorEmitter added");
