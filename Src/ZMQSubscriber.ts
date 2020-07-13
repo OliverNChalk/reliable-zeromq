@@ -1,6 +1,4 @@
 import * as zmq from "zeromq";
-import { DUMMY_ENDPOINTS, EEndpoint } from "./Constants";
-import { TEndpointAddresses } from "./Interfaces";
 import JSONBigInt from "./Utils/JSONBigInt";
 import { EMessageType, EPublishMessage, TPublisherMessage, TRecoveryRequest, TRecoveryResponse } from "./ZMQPublisher";
 import { ZMQRequest } from "./ZMQRequest";
@@ -24,13 +22,19 @@ type TEndpointEntry =
 
 type TInternalSubscription =
 {
-    Endpoint: EEndpoint;
+    Endpoint: string;
     Topic: string;
+};
+
+export type TSubscriptionEndpoints =
+{
+    PublisherAddress: string;
+    RequestAddress: string;
 };
 
 export class ZMQSubscriber
 {
-    private mEndpoints: Map<EEndpoint, TEndpointEntry> = new Map<EEndpoint, TEndpointEntry>();
+    private mEndpoints: Map<string, TEndpointEntry> = new Map<string, TEndpointEntry>();
     private mSubscriptions: Map<number, TInternalSubscription> = new Map();
     private mTokenId: number = 0;
 
@@ -42,19 +46,18 @@ export class ZMQSubscriber
     public constructor()
     {}
 
-    private async AddSubscriptionEndpoint(aEndpoint: EEndpoint): Promise<void>
+    private async AddSubscriptionEndpoint(aEndpoint: TSubscriptionEndpoints): Promise<void>
     {
-        const lEndpoint: TEndpointAddresses = DUMMY_ENDPOINTS[aEndpoint];
         const lSubSocket: zmq.Subscriber = new zmq.Subscriber;
-        lSubSocket.connect(lEndpoint.PublisherAddress);
+        lSubSocket.connect(aEndpoint.PublisherAddress);
 
         const lSocketEntry: TEndpointEntry = {
             Subscriber: lSubSocket,
-            Requester: new ZMQRequest(lEndpoint.RequestAddress),
+            Requester: new ZMQRequest(aEndpoint.RequestAddress),
             TopicEntries: new Map<string, TTopicEntry>(),
         };
         lSocketEntry.Requester.Start();
-        this.mEndpoints.set(aEndpoint, lSocketEntry);
+        this.mEndpoints.set(aEndpoint.PublisherAddress, lSocketEntry);
 
         for await (const buffers of lSubSocket)
         {
@@ -96,10 +99,15 @@ export class ZMQSubscriber
         }
     }
 
-    private ProcessNonce(aEndpoint: EEndpoint, aTopic: string, aNonce: number, aHeartbeat: boolean = false): boolean
+    private ProcessNonce(
+        aEndpoint: TSubscriptionEndpoints,
+        aTopic: string,
+        aNonce: number,
+        aHeartbeat: boolean = false,
+    ): boolean
     {
-        const lEndpoint: TEndpointEntry = this.mEndpoints.get(aEndpoint)!;
-        const lTopicEntry: TTopicEntry = this.mEndpoints.get(aEndpoint)!.TopicEntries.get(aTopic)!;
+        const lEndpoint: TEndpointEntry = this.mEndpoints.get(aEndpoint.PublisherAddress)!;
+        const lTopicEntry: TTopicEntry = this.mEndpoints.get(aEndpoint.PublisherAddress)!.TopicEntries.get(aTopic)!;
         const lLastSeenNonce: number = lTopicEntry.Nonce;
         const lExpectedNonce: number = aHeartbeat ? lLastSeenNonce : lLastSeenNonce + 1;
         let lCallCallback: boolean = true;
@@ -131,7 +139,7 @@ export class ZMQSubscriber
     }
 
     private async RecoverMissingMessages(
-        aEndpoint: EEndpoint,
+        aEndpoint: TSubscriptionEndpoints,
         aTopic: string,
         aEndpointEntry: TEndpointEntry,
         aMessageIds: number[],
@@ -144,7 +152,7 @@ export class ZMQSubscriber
 
         lParsedMessages.forEach((aParsedMessage: string[]): void =>
         {
-            this.mEndpoints.get(aEndpoint)!.TopicEntries.get(aTopic)!.Callbacks.forEach(
+            this.mEndpoints.get(aEndpoint.PublisherAddress)!.TopicEntries.get(aTopic)!.Callbacks.forEach(
             (aCallback: SubscriptionCallback): void =>
             {
                 aCallback(aParsedMessage[EPublishMessage.Message]);
@@ -153,15 +161,7 @@ export class ZMQSubscriber
     }
 
     public Start(): void
-    {
-        // Connect to all publishers on start
-        const lEndpoints: string[] = Object.values(EEndpoint);
-
-        for (let i: number = 0; i < lEndpoints.length; ++i)
-        {
-            this.AddSubscriptionEndpoint(lEndpoints[i] as EEndpoint);
-        }
-    }
+    {}
 
     public Stop(): void
     {
@@ -174,12 +174,17 @@ export class ZMQSubscriber
         this.mEndpoints.clear();
     }
 
-    public Subscribe(aEndpoint: EEndpoint, aTopic: string, aCallback: SubscriptionCallback): number
+    public Subscribe(aEndpoint: TSubscriptionEndpoints, aTopic: string, aCallback: SubscriptionCallback): number
     {
-        const lEndpoint: TEndpointEntry = this.mEndpoints.get(aEndpoint)!;
-        const lExistingTopic: TTopicEntry | undefined = lEndpoint.TopicEntries.get(aTopic);
+        let lEndpoint: TEndpointEntry | undefined = this.mEndpoints.get(aEndpoint.PublisherAddress);
+        if (!lEndpoint)
+        {
+            this.AddSubscriptionEndpoint(aEndpoint);
+            lEndpoint = this.mEndpoints.get(aEndpoint.PublisherAddress)!;
+        }
 
         const lSubscriptionId: number = this.SubscriptionId;
+        const lExistingTopic: TTopicEntry | undefined = lEndpoint.TopicEntries.get(aTopic);
         if (lExistingTopic)
         {
             lExistingTopic.Callbacks.set(lSubscriptionId, aCallback);
@@ -196,7 +201,7 @@ export class ZMQSubscriber
             );
         }
 
-        this.mSubscriptions.set(lSubscriptionId, { Endpoint: aEndpoint, Topic: aTopic });
+        this.mSubscriptions.set(lSubscriptionId, { Endpoint: aEndpoint.PublisherAddress, Topic: aTopic });
 
         return lSubscriptionId;
     }

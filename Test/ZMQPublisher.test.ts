@@ -4,7 +4,7 @@ import anyTest, { ExecutionContext } from "ava";
 import * as Sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
-import { EEndpoint, HEARTBEAT_INTERVAL } from "../Src/Constants";
+import { DUMMY_ENDPOINTS, HEARTBEAT_INTERVAL } from "../Src/Constants";
 import JSONBigInt from "../Src/Utils/JSONBigInt";
 import { EMessageType, ZMQPublisher } from "../Src/ZMQPublisher";
 import * as ZMQResponse from "../Src/ZMQResponse";
@@ -57,7 +57,10 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
     const clock: Sinon.SinonFakeTimers = Sinon.useFakeTimers();
     const lZmqPublisher: MockManager<zmq.Publisher> = t.context.PublisherMock;
     const lResponseMock: MockManager<ZMQResponse.ZMQResponse> = t.context.ResponderMock;
-    const lPublisher: ZMQPublisher = new ZMQPublisher(EEndpoint.STATUS_UPDATES);
+    const lPublisher: ZMQPublisher = new ZMQPublisher({
+        PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,
+        RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
+    });
 
     lZmqPublisher.mock("bind", Promise.resolve());
     lResponseMock.mock("Start", Promise.resolve());
@@ -183,7 +186,10 @@ test("Start, Stop, Start, Publish", async(t: ExecutionContext<TTestContext>): Pr
 {
     const lZmqPublisher: MockManager<zmq.Publisher> = t.context.PublisherMock;
     const lResponseMock: MockManager<ZMQResponse.ZMQResponse> = t.context.ResponderMock;
-    const lPublisher: ZMQPublisher = new ZMQPublisher(EEndpoint.STATUS_UPDATES);
+    const lPublisher: ZMQPublisher = new ZMQPublisher({
+        PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,
+        RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
+    });
 
     lPublisher.Start();
     lPublisher.Stop();

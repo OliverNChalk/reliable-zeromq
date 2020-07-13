@@ -1,14 +1,12 @@
 import * as zmq from "zeromq";
 import {
-    DUMMY_ENDPOINTS,
-    EEndpoint,
     HEARTBEAT_INTERVAL,
     PUBLISHER_CACHE_EXPIRY_MS,
 } from "./Constants";
-import { TEndpointAddresses } from "./Interfaces";
 import ExpiryMap from "./Utils/ExpiryMap";
 import JSONBigInt from "./Utils/JSONBigInt";
 import { ZMQResponse } from "./ZMQResponse";
+import { TSubscriptionEndpoints } from "./ZMQSubscriber";
 
 const CACHE_ERROR: string = "PUBLISHER ERROR: MESSAGE NOT IN CACHE";
 const BAD_REQUEST_ERROR: string = "BAD REQUEST: TOPIC DOES NOT EXIST";
@@ -42,16 +40,16 @@ export class ZMQPublisher
     private mTopicDetails: Map<string, TTopicDetails> = new Map();
 
     private mPublisher!: zmq.Publisher;
-    private readonly mPublisherEndpoint: EEndpoint;
+    private readonly mPublisherEndpoint: string;
     private mResponse: ZMQResponse;
 
     private mHeartbeatTimeout: NodeJS.Timeout | undefined;
 
-    public constructor(aEndpoint: EEndpoint)
+    public constructor(aEndpoint: TSubscriptionEndpoints)
     {
-        this.mPublisherEndpoint = aEndpoint;
+        this.mPublisherEndpoint = aEndpoint.PublisherAddress;
 
-        this.mResponse = new ZMQResponse(DUMMY_ENDPOINTS[aEndpoint].RequestAddress, this.HandleRequest);
+        this.mResponse = new ZMQResponse(aEndpoint.RequestAddress, this.HandleRequest);
     }
 
     private CheckHeartbeats = async(): Promise<void> =>
@@ -140,10 +138,8 @@ export class ZMQPublisher
 
     public async Start(): Promise<void>
     {
-        const lOurAddresses: TEndpointAddresses = DUMMY_ENDPOINTS[this.mPublisherEndpoint];
-
         this.mPublisher = new zmq.Publisher;
-        await this.mPublisher.bind(lOurAddresses.PublisherAddress);
+        await this.mPublisher.bind(this.mPublisherEndpoint);
 
         await this.mResponse.Start();
         this.CheckHeartbeats();

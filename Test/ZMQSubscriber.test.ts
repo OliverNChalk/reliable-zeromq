@@ -4,11 +4,11 @@ import anyTest, { ExecutionContext } from "ava";
 import sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
-import { EEndpoint } from "../Src/Constants";
+import { DUMMY_ENDPOINTS } from "../Src/Constants";
 import JSONBigInt from "../Src/Utils/JSONBigInt";
 import { EMessageType, TRecoveryResponse } from "../Src/ZMQPublisher";
 import * as ZMQRequest from "../Src/ZMQRequest";
-import { ZMQSubscriber } from "../Src/ZMQSubscriber";
+import { TSubscriptionEndpoints, ZMQSubscriber } from "../Src/ZMQSubscriber";
 
 type TAsyncIteratorResult = { value: any; done: boolean };
 type TTestContext =
@@ -79,16 +79,16 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
             result: string;
         }[];
     };
-    type TTestDataResult = { [index in EEndpoint]: TTopic[] };
+    type TTestDataResult = { [index: string]: TTopic[] };
 
     const lTestDataResult: TTestDataResult =
     {
-        [EEndpoint.STATUS_UPDATES]: [],
-        [EEndpoint.WEATHER_UPDATES]: [],
+        [DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress]: [],
+        [DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress]: [],
     };
 
-    const lStatusTopics: TTopic[] = lTestDataResult[EEndpoint.STATUS_UPDATES];
-    const lWeatherTopics: TTopic[] = lTestDataResult[EEndpoint.WEATHER_UPDATES];
+    const lStatusTopics: TTopic[] = lTestDataResult[DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress];
+    const lWeatherTopics: TTopic[] = lTestDataResult[DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress];
 
     lStatusTopics[0]
         = { topic: "TopicA", subId: 0, test: [{ data: "myTopicAMessage", result: undefined!, publish: undefined! }] };
@@ -132,7 +132,7 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
             return aFunc({ value: aMsg, done: false });
         };
 
-        function InsertByCount(aEndpoint: EEndpoint, aCount: number): void
+        function InsertByCount(aEndpoint: string, aCount: number): void
         {
             const lTopics: TTopic[] = lTestDataResult[aEndpoint];
 
@@ -185,17 +185,13 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
         switch (aIteration)
         {
             case 0:
-            case 1:
-            case 3:
-                break;
-            case 2:
                 lSoloPublisher = lFunc;
                 break;
-            case 4:
-                InsertByCount(EEndpoint.STATUS_UPDATES, aCount);
+            case 1:
+                InsertByCount(DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress, aCount);
                 break;
-            case 5:
-                InsertByCount(EEndpoint.WEATHER_UPDATES, aCount);
+            case 2:
+                InsertByCount(DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress, aCount);
                 break;
             default:
                 throw new Error("Unexpected call to create asyncIterator");
@@ -219,11 +215,18 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
     lSubscriber.Start();
 
     let lCalled: boolean = false;
-    lSubscriber.Subscribe(EEndpoint.STATUS_UPDATES, "myFirstTopic", (aMsg: string): void =>
-    {
-        t.is(aMsg, JSONBigInt.Stringify(t.context.TestData));
-        lCalled = true;
-    });
+    lSubscriber.Subscribe(
+        {
+            PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,
+            RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
+        },
+        "myFirstTopic",
+        (aMsg: string): void =>
+        {
+            t.is(aMsg, JSONBigInt.Stringify(t.context.TestData));
+            lCalled = true;
+        },
+    );
 
     await setImmediate((): void => {});
 
@@ -240,29 +243,49 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
 
     t.true(lCalled);
 
+    t.is(lSubscriber["mEndpoints"].size, 1);
     lSubscriber.Stop();
     t.is(lSubscriber["mEndpoints"].size, 0);
 
     lSubscriber.Start();
-    t.is(lSubscriber["mEndpoints"].size, 2);
+    t.is(lSubscriber["mEndpoints"].size, 0);
 
-    const lSubscribe = (aEndpoint: EEndpoint, aIndex: number): void =>
+    const lSubscribe = (aEndpoint: TSubscriptionEndpoints, aIndex: number): void =>
     {
-        const lTopic: TTopic = lTestDataResult[aEndpoint][aIndex];
+        const lTopic: TTopic = lTestDataResult[aEndpoint.PublisherAddress][aIndex];
         let lCallNumber: number = 0;
 
         lTopic.subId = lSubscriber.Subscribe(aEndpoint, lTopic.topic, (aMsg: string): void =>
         {
-            t.assert(lCallNumber < lTestDataResult[aEndpoint][aIndex].test.length);
-            lTestDataResult[aEndpoint][aIndex].test[lCallNumber++].result = aMsg;
+            t.assert(lCallNumber < lTestDataResult[aEndpoint.PublisherAddress][aIndex].test.length);
+            lTestDataResult[aEndpoint.PublisherAddress][aIndex].test[lCallNumber++].result = aMsg;
         });
     };
 
-    lSubscribe(EEndpoint.STATUS_UPDATES, 0);
-    lSubscribe(EEndpoint.STATUS_UPDATES, 1);
-    lSubscribe(EEndpoint.STATUS_UPDATES, 2);
-    lSubscribe(EEndpoint.WEATHER_UPDATES, 0);
-    lSubscribe(EEndpoint.WEATHER_UPDATES, 1);
+    lSubscribe({
+        PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,
+        RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
+    }, 0);
+
+    lSubscribe({
+        PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,
+        RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
+    }, 1);
+
+    lSubscribe({
+        PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,
+        RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
+    }, 2);
+
+    lSubscribe({
+        PublisherAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress,
+        RequestAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.RequestAddress,
+    }, 0);
+
+    lSubscribe({
+        PublisherAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress,
+        RequestAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.RequestAddress,
+    }, 1);
 
     for (const aEndpoint in lTestDataResult)
     {
@@ -330,7 +353,7 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
             lSubscriber.Unsubscribe(lTopic.subId);
         }
 
-        t.is(lSubscriber["mEndpoints"].get(aEndpoint as EEndpoint)!.TopicEntries.size, 0);
+        t.is(lSubscriber["mEndpoints"].get(aEndpoint)!.TopicEntries.size, 0);
     }
 
     t.throws((): void => { lSubscriber.Unsubscribe(0); });
@@ -365,12 +388,18 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
 
     lSubscriber.Start();
     lSubscriptionIds[0] = lSubscriber.Subscribe(
-        EEndpoint.STATUS_UPDATES,
+        {
+            PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,
+            RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
+        },
         "TopicToTest",
         (aMsg: string): void => { lResults.push(aMsg); },
     );
     lSubscriptionIds[1] = lSubscriber.Subscribe(
-        EEndpoint.WEATHER_UPDATES,
+        {
+            PublisherAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress,
+            RequestAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.RequestAddress,
+        },
         "Sydney",
         (aMsg: string): void => { lResults.push(aMsg); },
     );
@@ -408,9 +437,12 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
     t.is(lResults[3], "Hello3");
 
     lSubCallbacks[1]({ value: ["Sydney", EMessageType.HEARTBEAT, "0", ""], done: false });
-
     await setImmediate((): void => {});
-    t.is(lSubscriber["mEndpoints"].get(EEndpoint.WEATHER_UPDATES)!.TopicEntries.get("Sydney")!.Nonce, 0);
+    t.is(
+        lSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress)!
+            .TopicEntries.get("Sydney")!.Nonce,
+        0,
+    );
 
     await WaitFor((): boolean => { return lSubCallbacks[3] !== undefined; });
     lSubCallbacks[3]({ value: ["Sydney", EMessageType.HEARTBEAT, "5", ""], done: false });
@@ -424,13 +456,20 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
     t.is(lResults[8], "Overcast");
 
     lSubscriptionIds[2] = lSubscriber.Subscribe(
-        EEndpoint.WEATHER_UPDATES,
+        {
+            PublisherAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress,
+            RequestAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.RequestAddress,
+        },
         "Sydney",
         (aMsg: string): void => { lResults.push(aMsg); },
     );
 
     t.is(lSubscriber["mSubscriptions"].size, 3);
-    t.is(lSubscriber["mEndpoints"].get(EEndpoint.WEATHER_UPDATES)!.TopicEntries.get("Sydney")!.Callbacks.size, 2);
+    t.is(
+        lSubscriber["mEndpoints"]
+            .get(DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress)!.TopicEntries.get("Sydney")!.Callbacks.size,
+        2,
+    );
     t.is(lResults.length, 9);
 
     await WaitFor((): boolean => { return lSubCallbacks[4] !== undefined; });
@@ -458,21 +497,33 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
     t.is(lResults[10], "NewWeather");
 
     t.is(lSubscriber["mSubscriptions"].size, 3);
-    t.is(lSubscriber["mEndpoints"].get(EEndpoint.STATUS_UPDATES)!.TopicEntries.get("TopicToTest")!.Callbacks.size, 1);
-    t.is(lSubscriber["mEndpoints"].get(EEndpoint.WEATHER_UPDATES)!.TopicEntries.get("Sydney")!.Callbacks.size, 2);
+    t.is(
+        lSubscriber["mEndpoints"]
+            .get(DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress)!.TopicEntries.get("TopicToTest")!.Callbacks.size,
+        1,
+    );
+    t.is(lSubscriber["mEndpoints"].get(
+        DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress)!
+            .TopicEntries.get("Sydney")!.Callbacks.size,
+        2,
+    );
 
     lSubscriber.Unsubscribe(lSubscriptionIds[0]);
     lSubscriber.Unsubscribe(lSubscriptionIds[1]);
 
     t.is(lSubscriber["mSubscriptions"].size, 1);
-    t.is(lSubscriber["mEndpoints"].get(EEndpoint.STATUS_UPDATES)!.TopicEntries.size, 0);
-    t.is(lSubscriber["mEndpoints"].get(EEndpoint.WEATHER_UPDATES)!.TopicEntries.get("Sydney")!.Callbacks.size, 1);
+    t.is(lSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress)!.TopicEntries.size, 0);
+    t.is(
+        lSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress)!
+            .TopicEntries.get("Sydney")!.Callbacks.size,
+        1,
+    );
 
     lSubscriber.Unsubscribe(lSubscriptionIds[2]);
 
     t.is(lSubscriber["mSubscriptions"].size, 0);
-    t.is(lSubscriber["mEndpoints"].get(EEndpoint.STATUS_UPDATES)!.TopicEntries.size, 0);
-    t.is(lSubscriber["mEndpoints"].get(EEndpoint.WEATHER_UPDATES)!.TopicEntries.size, 0);
+    t.is(lSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress)!.TopicEntries.size, 0);
+    t.is(lSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress)!.TopicEntries.size, 0);
 });
 
 test.todo("Test error cases after ErrorEmitter added");

@@ -3,13 +3,13 @@ import type { TestInterface } from "ava";
 import anyTest, { ExecutionContext } from "ava";
 import * as sinon from "sinon";
 import { ImportMock } from "ts-mock-imports";
-import { EEndpoint } from "../../Src/Constants";
+import { DUMMY_ENDPOINTS } from "../../Src/Constants";
 import { Delay } from "../../Src/Utils/Delay";
 import JSONBigInt from "../../Src/Utils/JSONBigInt";
 import { ZMQPublisher } from "../../Src/ZMQPublisher";
 import { ZMQRequest } from "../../Src/ZMQRequest";
 import { ZMQResponse } from "../../Src/ZMQResponse";
-import { ZMQSubscriber } from "../../Src/ZMQSubscriber";
+import { TSubscriptionEndpoints, ZMQSubscriber } from "../../Src/ZMQSubscriber";
 
 type TTestContext =
 {
@@ -135,8 +135,14 @@ test.serial("ZMQResponse: Start, Receive, Repeat", async(t: ExecutionContext<TTe
 
 test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
-    const lStatusUpdatePublisher: ZMQPublisher = new ZMQPublisher(EEndpoint.STATUS_UPDATES);
-    const lWeatherUpdatePublisher: ZMQPublisher = new ZMQPublisher(EEndpoint.WEATHER_UPDATES);
+    const lStatusUpdatePublisher: ZMQPublisher = new ZMQPublisher({
+        PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,
+        RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
+    });
+    const lWeatherUpdatePublisher: ZMQPublisher = new ZMQPublisher({
+        PublisherAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress,
+        RequestAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.RequestAddress,
+    });
     const lSubscriber: ZMQSubscriber = new ZMQSubscriber();
 
     await lSubscriber.Start();
@@ -145,7 +151,7 @@ test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestConte
 
     type TTestDataResult =
     {
-        [index in EEndpoint]: {
+        [index: string]: {
             Publisher: ZMQPublisher;
             Topics: {
                 [index: string]: {
@@ -158,47 +164,67 @@ test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestConte
 
     const lTestDataResult: TTestDataResult =
     {
-        [EEndpoint.STATUS_UPDATES]: {
+        [DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress]: {
             Publisher: lStatusUpdatePublisher,
             Topics: {},
         },
-        [EEndpoint.WEATHER_UPDATES]: {
+        [DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress]: {
             Publisher: lWeatherUpdatePublisher,
             Topics: {},
         },
     };
 
-    lTestDataResult[EEndpoint.STATUS_UPDATES].Topics["TopicA"] = { data: ["myTestMessage"], result: [] };
-    lTestDataResult[EEndpoint.STATUS_UPDATES].Topics["TopicB"] = { data: ["myTestMessage"], result: [] };
-    lTestDataResult[EEndpoint.STATUS_UPDATES].Topics["TopicC"] = { data: ["myTestMessage"], result: [] };
-    lTestDataResult[EEndpoint.WEATHER_UPDATES].Topics["Sydney"] = { data: ["sunny"], result: [] };
-    lTestDataResult[EEndpoint.WEATHER_UPDATES].Topics["Newcastle"] = { data: ["cloudy"], result: [] };
+    lTestDataResult[DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress].Topics["TopicA"]
+        = { data: ["myTestMessage"], result: [] };
+    lTestDataResult[DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress].Topics["TopicB"]
+        = { data: ["myTestMessage"], result: [] };
+    lTestDataResult[DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress].Topics["TopicC"]
+        = { data: ["myTestMessage"], result: [] };
+    lTestDataResult[DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress].Topics["Sydney"]
+        = { data: ["sunny"], result: [] };
+    lTestDataResult[DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress].Topics["Newcastle"]
+        = { data: ["cloudy"], result: [] };
 
-    const lSaveResult = (aEndpoint: EEndpoint, aTopic: string, aNonce: number, aMessage: string): void =>
+    const lSaveResult = (aEndpoint: string, aTopic: string, aNonce: number, aMessage: string): void =>
     {
         lTestDataResult[aEndpoint].Topics[aTopic].result[aNonce - 1] = aMessage;
     };
 
-    const lSubscribe = (aEndpoint: EEndpoint, aTopic: string): void =>
+    const lSubscribe = (aEndpoint: TSubscriptionEndpoints, aTopic: string): void =>
     {
         lSubscriber.Subscribe(aEndpoint, aTopic, (aMsg: string): void =>
         {
-            lTestDataResult[aEndpoint].Publisher["mMessageCaches"].get(aTopic)!.forEach(
+            lTestDataResult[aEndpoint.PublisherAddress].Publisher["mMessageCaches"].get(aTopic)!.forEach(
             (aValue: string[], aKey: number): void =>
             {
                 if (aValue[3] === aMsg)
                 {
-                    lSaveResult(aEndpoint, aTopic, aKey, aMsg);
+                    lSaveResult(aEndpoint.PublisherAddress, aTopic, aKey, aMsg);
                 }
             });
         });
     };
 
-    lSubscribe(EEndpoint.STATUS_UPDATES, "TopicA");
-    lSubscribe(EEndpoint.STATUS_UPDATES, "TopicB");
-    lSubscribe(EEndpoint.STATUS_UPDATES, "TopicC");
-    lSubscribe(EEndpoint.WEATHER_UPDATES, "Newcastle");
-    lSubscribe(EEndpoint.WEATHER_UPDATES, "Sydney");
+    lSubscribe({
+        PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,
+        RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
+    }, "TopicA");
+    lSubscribe({
+        PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,
+        RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
+    }, "TopicB");
+    lSubscribe({
+        PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,
+        RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
+    }, "TopicC");
+    lSubscribe({
+        PublisherAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress,
+        RequestAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.RequestAddress,
+    }, "Newcastle");
+    lSubscribe({
+        PublisherAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress,
+        RequestAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.RequestAddress,
+    }, "Sydney");
 
     for (const aEndpoint in lTestDataResult)
     {
@@ -214,11 +240,16 @@ test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestConte
 
     while
     (
-            lSubscriber["mEndpoints"].get(EEndpoint.STATUS_UPDATES)!.TopicEntries.get("TopicA")!.Nonce < 1
-        ||  lSubscriber["mEndpoints"].get(EEndpoint.STATUS_UPDATES)!.TopicEntries.get("TopicB")!.Nonce < 1
-        ||  lSubscriber["mEndpoints"].get(EEndpoint.STATUS_UPDATES)!.TopicEntries.get("TopicC")!.Nonce < 1
-        ||  lSubscriber["mEndpoints"].get(EEndpoint.WEATHER_UPDATES)!.TopicEntries.get("Sydney")!.Nonce < 1
-        ||  lSubscriber["mEndpoints"].get(EEndpoint.WEATHER_UPDATES)!.TopicEntries.get("Newcastle")!.Nonce < 1
+            lSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress)!
+                .TopicEntries.get("TopicA")!.Nonce < 1
+        ||  lSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress)!
+                .TopicEntries.get("TopicB")!.Nonce < 1
+        ||  lSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress)!
+                .TopicEntries.get("TopicC")!.Nonce < 1
+        ||  lSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress)!
+                .TopicEntries.get("Sydney")!.Nonce < 1
+        ||  lSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress)!
+                .TopicEntries.get("Newcastle")!.Nonce < 1
     )
     {
         await Delay(100);

@@ -1,7 +1,3 @@
-import { EEndpoint } from "./Constants";
-
-export type TEndpointAddressList = { [K in keyof typeof EEndpoint]: TEndpointAddresses };
-
 export type TEndpointAddresses =
 {
     PublisherAddress: string;
