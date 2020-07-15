@@ -1,6 +1,6 @@
 {
   "name": "reliable-zeromq",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "A collection of reliable zeromq messaging constructs",
   "main": "Dist/Src/Index.js",
   "types": "Dist/Src/Index.d.ts",
