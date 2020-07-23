@@ -1,3 +1,4 @@
+import { Queue } from "typescript-collections";
 import * as zmq from "zeromq";
 import { MAXIMUM_LATENCY } from "./Constants";
 import { Delay } from "./Utils/Delay";
@@ -15,12 +16,21 @@ type TResolveReject =
     Reject: TReject;
 };
 
+type TSendRequest =
+{
+    Request: string[];
+    Resolve: () => void;
+};
+
 export class ZMQRequest
 {
     private mDealer!: zmq.Dealer;
     private readonly mEndpoint: string;
     private mPendingRequests: Map<number, TResolveReject> = new Map();
     private mRequestNonce: number = 0;
+
+    // Message queueing
+    private mSendQueue: Queue<TSendRequest> = new Queue();
 
     public constructor(aReceiverEndpoint: string)
     {
@@ -34,7 +44,7 @@ export class ZMQRequest
         await Delay(RESPONSE_TIMEOUT);
         while (this.mPendingRequests.has(aRequestId) && Date.now() < lMaximumSendTime)
         {
-            await this.mDealer.send(aRequest);
+            await this.SendMessage(aRequest);
             await Delay(RESPONSE_TIMEOUT);
         }
 
@@ -44,6 +54,19 @@ export class ZMQRequest
             // TODO: Error via EventEmitter
             lResolver.Reject(new Error(MAX_TIME_ERROR));
             this.Stop();
+        }
+    }
+
+    private async ProcessSend(): Promise<void>
+    {
+        const lNextSend: TSendRequest | undefined = this.mSendQueue.dequeue();
+
+        if (lNextSend)
+        {
+            await this.mDealer.send(lNextSend.Request);
+            lNextSend.Resolve();
+
+            this.ProcessSend();
         }
     }
 
@@ -63,9 +86,34 @@ export class ZMQRequest
         }
     }
 
+    private SendMessage(aRequest: string[]): Promise<void>
+    {
+        let lResolver: () => void;
+
+        const lPromise: Promise<void> = new Promise<void>((aResolve: () => void): void =>
+        {
+            lResolver = aResolve;
+        });
+
+        this.mSendQueue.enqueue(
+            {
+                Request: aRequest,
+                Resolve: lResolver!,
+            },
+        );
+        this.ProcessSend();
+
+        return lPromise;
+    }
+
     public async Send(aData: string): Promise<string>
     {
         // TODO: Build a way to safely send multiple requests without creating a backlog
+        if (!this.mDealer)
+        {
+            throw new Error("Attempted to send while stopped");
+        }
+
         const lRequestId: number = this.mRequestNonce;
 
         const lRequest: string[] =
@@ -73,7 +121,7 @@ export class ZMQRequest
             JSONBigInt.Stringify(lRequestId),
             aData,
         ];
-        await this.mDealer.send(lRequest);
+        await this.SendMessage(lRequest);
 
         this.ManageRequest(lRequestId, lRequest);
         ++this.mRequestNonce;

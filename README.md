@@ -3,6 +3,7 @@
 ### TODO:
  - Publisher: Stop Protocol (Heartbeating stops)
  - ErrorEmitter
+   - HWM Hit: Handling
  - Performance Testing
  - Migrate to ESLint
  - Test multiple subscribers to one publisher (networked)

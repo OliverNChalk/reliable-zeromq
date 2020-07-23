@@ -139,6 +139,7 @@ test.serial("Maximum Latency", async(t: ExecutionContext<TTestContext>): Promise
     const lTickTime: number = 500;  // RESPONSE_TIMEOUT const
     for (let i: number = 0; i <= MAXIMUM_LATENCY * 2 + lTickTime; i += lTickTime)
     {
+        await Promise.resolve();
         clock.tick(lTickTime);
         await Promise.resolve();
     }
