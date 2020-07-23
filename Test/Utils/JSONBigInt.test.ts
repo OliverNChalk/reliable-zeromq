@@ -153,3 +153,26 @@ test("Parse", (t: ExecutionContext<TTestContext>): void =>
     };
     t.deepEqual(JSONBigInt.Parse(lStartingStringWithNegative), lExpected);
 });
+
+test("Stringify & Parse", (t: ExecutionContext<TTestContext>): void =>
+{
+    const lTargetObject: TDummyData[] = t.context.DummyData;
+    const lStringified: string = JSONBigInt.Stringify(t.context.DummyData);
+    const lParsed: TDummyData[] = JSONBigInt.Parse(lStringified);
+
+    t.deepEqual(lParsed, lTargetObject);
+    t.deepEqual(lStringified, t.context.DummyString);
+
+    function StringifyThenParse(aInput: any): any
+    {
+        return JSONBigInt.Parse(JSONBigInt.Stringify(aInput));
+    }
+
+    t.is(StringifyThenParse(undefined), undefined);
+    t.is(StringifyThenParse(null), null);
+    t.is(StringifyThenParse(void(0)), void(0));
+    t.deepEqual(StringifyThenParse({}), {});
+    t.is(StringifyThenParse(""), "");
+    t.is(StringifyThenParse(0n), 0n);
+    t.is(StringifyThenParse(-1n), -1n);
+});

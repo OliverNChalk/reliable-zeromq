@@ -41,11 +41,27 @@ export default class JSONBigInt
 
     public static Parse(aString: string): any
     {
-        return JSON.parse(aString, JSONBigInt.ParseReviver);
+        switch (aString)
+        {
+            case "undefined":
+                return undefined;
+            case "null":
+                return null;
+            default:
+                return JSON.parse(aString, JSONBigInt.ParseReviver);
+        }
     }
 
     public static Stringify(aValue: any): string
     {
-        return JSON.stringify(aValue, JSONBigInt.StringifyReplacer);
+        switch (aValue)
+        {
+            case undefined:
+                return "undefined";
+            case null:
+                return "null";
+            default:
+                return JSON.stringify(aValue, JSONBigInt.StringifyReplacer);
+        }
     }
 }
