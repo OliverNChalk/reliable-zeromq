@@ -1,3 +1,4 @@
+import { Queue } from "typescript-collections";
 import * as zmq from "zeromq";
 import {
     HEARTBEAT_INTERVAL,
@@ -33,17 +34,17 @@ type TTopicDetails =
     LatestMessageNonce: number;
     LatestMessageTimestamp: number;
 };
+type TPublishRequest = string[];
 
 export class ZMQPublisher
 {
-    private mMessageCaches: Map<string, ExpiryMap<number, string[]>> = new Map();
-    private mTopicDetails: Map<string, TTopicDetails> = new Map();
-
-    private mPublisher!: zmq.Publisher;
+    private readonly mMessageCaches: Map<string, ExpiryMap<number, string[]>> = new Map();
     private readonly mPublisherEndpoint: string;
-    private mResponse: ZMQResponse;
-
+    private readonly mPublishQueue: Queue<TPublishRequest> = new Queue();
+    private readonly mTopicDetails: Map<string, TTopicDetails> = new Map();
     private mHeartbeatTimeout: NodeJS.Timeout | undefined;
+    private mPublisher!: zmq.Publisher;
+    private mResponse: ZMQResponse;
 
     public constructor(aEndpoint: TSubscriptionEndpoints)
     {
@@ -58,7 +59,7 @@ export class ZMQPublisher
         {
             if (aValue.LatestMessageTimestamp + HEARTBEAT_INTERVAL <= Date.now())
             {
-                await this.mPublisher.send(
+                await this.QueuePublish(
                     [
                         aKey,
                         EMessageType.HEARTBEAT,
@@ -75,7 +76,7 @@ export class ZMQPublisher
     private HandleRequest = (aMessage: string): Promise<string> =>
     {
         const lRequest: TRecoveryRequest = JSONBigInt.Parse(aMessage);
-        const lTopic: string = lRequest[0];   // PERF: Ouch!
+        const lTopic: string = lRequest[0];
 
         const lDecodedRequest: number[] = [];
         for (let i: number = 1; i < lRequest.length; ++i)
@@ -101,6 +102,24 @@ export class ZMQPublisher
         }
 
         return Promise.resolve(JSONBigInt.Stringify(lRequestedMessages));
+    }
+
+    private async ProcessPublish(): Promise<void>
+    {
+        const lNextSend: TPublishRequest | undefined = this.mPublishQueue.dequeue();
+
+        if (lNextSend)
+        {
+            await this.mPublisher.send(lNextSend);
+
+            this.ProcessPublish();
+        }
+    }
+
+    private QueuePublish(aMessage: string[]): void
+    {
+        this.mPublishQueue.enqueue(aMessage);
+        this.ProcessPublish();
     }
 
     public async Publish(aTopic: string, aData: string): Promise<void>
@@ -133,7 +152,7 @@ export class ZMQPublisher
         lCache.set(lMessageNonce, lMessage);
         lTopicDetails.LatestMessageTimestamp = Date.now();
 
-        await this.mPublisher!.send(lMessage);
+        await this.QueuePublish(lMessage);
     }
 
     public async Start(): Promise<void>
