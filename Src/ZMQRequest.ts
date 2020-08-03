@@ -52,8 +52,7 @@ export class ZMQRequest
         if (lResolver)
         {
             // TODO: Error via EventEmitter
-            lResolver.Reject(new Error(MAX_TIME_ERROR));
-            this.Stop();
+            throw new Error(MAX_TIME_ERROR);
         }
     }
 

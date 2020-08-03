@@ -45,6 +45,7 @@ export class ZMQPublisher
     private mHeartbeatTimeout: NodeJS.Timeout | undefined;
     private mPublisher!: zmq.Publisher;
     private mResponse: ZMQResponse;
+    private mSafeToPublish: boolean = true;
 
     public constructor(aEndpoint: TSubscriptionEndpoints)
     {
@@ -106,11 +107,15 @@ export class ZMQPublisher
 
     private async ProcessPublish(): Promise<void>
     {
-        const lNextSend: TPublishRequest | undefined = this.mPublishQueue.dequeue();
+        const lNextSend: TPublishRequest | undefined = this.mPublishQueue.peek();
 
-        if (lNextSend)
+        if (lNextSend && this.mSafeToPublish)
         {
+            this.mPublishQueue.dequeue();
+            this.mSafeToPublish = false;
+
             await this.mPublisher.send(lNextSend);
+            this.mSafeToPublish = true;
 
             this.ProcessPublish();
         }

@@ -8,6 +8,7 @@ import { DUMMY_ENDPOINTS, HEARTBEAT_INTERVAL } from "../Src/Constants";
 import JSONBigInt from "../Src/Utils/JSONBigInt";
 import { EMessageType, ZMQPublisher } from "../Src/ZMQPublisher";
 import * as ZMQResponse from "../Src/ZMQResponse";
+import WaitFor from "./Helpers/WaitFor";
 
 type TTestContext =
 {
@@ -161,6 +162,8 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
     t.is(lPublisher["mTopicDetails"].size, 3);
     clock.tick(HEARTBEAT_INTERVAL);
 
+    await WaitFor(() => lPublisher["mPublishQueue"].size() === 0);
+
     const lHeartbeats: string[][] =
     [
         lSendMock.getCall(7).args[0],
@@ -178,6 +181,8 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
     t.is(lSendMock.callCount, 10);
 
     clock.tick(HEARTBEAT_INTERVAL);
+
+    await WaitFor(() => lPublisher["mPublishQueue"].size() === 0);
 
     t.is(lSendMock.callCount, 13);
 });

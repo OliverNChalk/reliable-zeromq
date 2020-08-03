@@ -9,6 +9,7 @@ import JSONBigInt from "../Src/Utils/JSONBigInt";
 import { EMessageType, TRecoveryResponse } from "../Src/ZMQPublisher";
 import * as ZMQRequest from "../Src/ZMQRequest";
 import { TSubscriptionEndpoints, ZMQSubscriber } from "../Src/ZMQSubscriber";
+import WaitFor from "./Helpers/WaitFor";
 
 type TAsyncIteratorResult = { value: any; done: boolean };
 type TTestContext =
@@ -17,22 +18,7 @@ type TTestContext =
     TestData: any[];
 };
 
-const test: TestInterface<TTestContext> = anyTest as TestInterface<TTestContext> ;
-
-async function WaitFor(aCondition: () => boolean): Promise<void>
-{
-    let lIteration: number = 0;
-    while (!aCondition() && lIteration < 100)
-    {
-        await setImmediate((): void => {});
-        ++lIteration;
-    }
-
-    if (lIteration === 100)
-    {
-        throw new Error("MAX WaitFor Iterations Reached");
-    }
-}
+const test: TestInterface<TTestContext> = anyTest as TestInterface<TTestContext>;
 
 test.before((t: ExecutionContext<TTestContext>): void =>
 {
