@@ -19,10 +19,10 @@ export class ZMQResponse
 
     private async ReceiveLoop(): Promise<void>
     {
-        for await (const [sender, nonce, msg] of this.mRouter)
+        for await (const [sender, sender_uid, nonce, msg] of this.mRouter)
         {
             // Forward requests to the registered handler
-            const lMessageId: string = sender.toString() + nonce.toString();
+            const lMessageId: string = sender_uid.toString() + nonce.toString();
             const lResponse: string | undefined = this.mCachedRequests.get(lMessageId);
 
             let lPromise: Promise<string>;

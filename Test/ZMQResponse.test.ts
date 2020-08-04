@@ -75,6 +75,7 @@ test.serial("Start, Receive, Repeat", async(t: ExecutionContext<TTestContext>): 
     await lResponse.Start();
     t.context.SendToReceiver([
         "sender",
+        "unique_sender_id",
         "0",
         "hello",
     ]);
@@ -90,6 +91,7 @@ test.serial("Start, Receive, Repeat", async(t: ExecutionContext<TTestContext>): 
     lResponder = async(aMsg: string): Promise<string> => aMsg + " response";
     t.context.SendToReceiver([
         "sender",
+        "unique_sender_id",
         "1",
         "this should not throw",
     ]);
@@ -100,6 +102,7 @@ test.serial("Start, Receive, Repeat", async(t: ExecutionContext<TTestContext>): 
 
     t.context.SendToReceiver([
         "sender",
+        "unique_sender_id",
         "1",
         "this should not throw",
     ]);
@@ -110,6 +113,7 @@ test.serial("Start, Receive, Repeat", async(t: ExecutionContext<TTestContext>): 
 
     t.context.SendToReceiver([
         "sender",
+        "unique_sender_id",
         "1",
         "this should not throw",
     ]);

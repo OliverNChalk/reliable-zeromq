@@ -1,8 +1,8 @@
 import { Queue } from "typescript-collections";
+import uniqid from "uniqid";
 import * as zmq from "zeromq";
 import { MAXIMUM_LATENCY } from "./Constants";
 import { Delay } from "./Utils/Delay";
-import JSONBigInt from "./Utils/JSONBigInt";
 
 const RESPONSE_TIMEOUT: number = 500;   // 500ms   (this includes computation time on the wrapped service)
 const ROUND_TRIP_MAX_TIME: number = 2 * MAXIMUM_LATENCY;
@@ -28,6 +28,7 @@ export class ZMQRequest
     private readonly mEndpoint: string;
     private mPendingRequests: Map<number, TResolveReject> = new Map();
     private mRequestNonce: number = 0;
+    private mOurUniqueId: string;
 
     // Message queueing
     private mSendQueue: Queue<TSendRequest> = new Queue();
@@ -35,6 +36,7 @@ export class ZMQRequest
     public constructor(aReceiverEndpoint: string)
     {
         this.mEndpoint = aReceiverEndpoint;
+        this.mOurUniqueId = uniqid();
     }
 
     private async ManageRequest(aRequestId: number, aRequest: string[]): Promise<void>
@@ -113,17 +115,17 @@ export class ZMQRequest
             throw new Error("Attempted to send while stopped");
         }
 
-        const lRequestId: number = this.mRequestNonce;
+        const lRequestId: number = this.mRequestNonce++;
 
         const lRequest: string[] =
         [
-            JSONBigInt.Stringify(lRequestId),
+            this.mOurUniqueId,
+            lRequestId.toString(),
             aData,
         ];
         await this.SendMessage(lRequest);
 
         this.ManageRequest(lRequestId, lRequest);
-        ++this.mRequestNonce;
 
         return new Promise<string>((aResolve: TResolve, aReject: TReject): void =>
         {
