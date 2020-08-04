@@ -193,12 +193,7 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
 
     const lSubscriber: ZMQSubscriber = new ZMQSubscriber();
 
-    lSubscriber.Start();
     lSubscriber.Stop();
-
-    t.is(lSubscriber["mEndpoints"].size, 0);
-
-    lSubscriber.Start();
 
     let lCalled: boolean = false;
     lSubscriber.Subscribe(
@@ -231,9 +226,6 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
 
     t.is(lSubscriber["mEndpoints"].size, 1);
     lSubscriber.Stop();
-    t.is(lSubscriber["mEndpoints"].size, 0);
-
-    lSubscriber.Start();
     t.is(lSubscriber["mEndpoints"].size, 0);
 
     const lSubscribe = (aEndpoint: TSubscriptionEndpoints, aIndex: number): void =>
@@ -372,7 +364,6 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
     const lSubscriptionIds: number[] = [];
     const lResults: string[] = [];
 
-    lSubscriber.Start();
     lSubscriptionIds[0] = lSubscriber.Subscribe(
         {
             PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,

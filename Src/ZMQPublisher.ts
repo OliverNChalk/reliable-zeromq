@@ -173,6 +173,7 @@ export class ZMQPublisher
     {
         this.mResponse.Stop();
 
+        this.mPublisher.linger = 0;
         this.mPublisher.close();
         delete(this.mPublisher);
         clearTimeout(this.mHeartbeatTimeout!);

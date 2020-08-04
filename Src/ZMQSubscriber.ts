@@ -160,15 +160,13 @@ export class ZMQSubscriber
         });
     }
 
-    public Start(): void
-    {}
-
     public Stop(): void
     {
         this.mEndpoints.forEach((aEndpoint: TEndpointEntry): void =>
         {
             aEndpoint.Subscriber.linger = 0;
             aEndpoint.Subscriber.close();
+            aEndpoint.Requester.Stop();
         });
 
         this.mEndpoints.clear();

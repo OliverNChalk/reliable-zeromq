@@ -145,7 +145,6 @@ test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestConte
     });
     const lSubscriber: ZMQSubscriber = new ZMQSubscriber();
 
-    await lSubscriber.Start();
     await lStatusUpdatePublisher.Start();
     await lWeatherUpdatePublisher.Start();
 
