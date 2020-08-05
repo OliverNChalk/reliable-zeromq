@@ -1,3 +1,6 @@
+[![Build Status](https://travis-ci.com/OliverNChalk/reliable-zeromq.svg?branch=master)](https://travis-ci.com/OliverNChalk/reliable-zeromq)
+[![codecov](https://codecov.io/gh/OliverNChalk/reliable-zeromq/branch/master/graph/badge.svg)](https://codecov.io/gh/OliverNChalk/reliable-zeromq)
+
 # Reliable ZeroMQ
 
 ### TODO:
