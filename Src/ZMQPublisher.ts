@@ -39,7 +39,7 @@ type TPublishRequest = string[];
 export class ZMQPublisher
 {
     private readonly mMessageCaches: Map<string, ExpiryMap<number, string[]>> = new Map();
-    private readonly mPublisherEndpoint: string;
+    private readonly mEndpoint: string;
     private readonly mPublishQueue: Queue<TPublishRequest> = new Queue();
     private readonly mTopicDetails: Map<string, TTopicDetails> = new Map();
     private mHeartbeatTimeout: NodeJS.Timeout | undefined;
@@ -49,7 +49,7 @@ export class ZMQPublisher
 
     public constructor(aEndpoint: TSubscriptionEndpoints)
     {
-        this.mPublisherEndpoint = aEndpoint.PublisherAddress;
+        this.mEndpoint = aEndpoint.PublisherAddress;
 
         this.mResponse = new ZMQResponse(aEndpoint.RequestAddress, this.HandleRequest);
     }
@@ -127,6 +127,11 @@ export class ZMQPublisher
         this.ProcessPublish();
     }
 
+    public get Endpoint(): string
+    {
+        return this.mEndpoint;
+    }
+
     public async Publish(aTopic: string, aData: string): Promise<void>
     {
         let lCache: ExpiryMap<number, string[]> | undefined = this.mMessageCaches.get(aTopic);
@@ -163,7 +168,7 @@ export class ZMQPublisher
     public async Start(): Promise<void>
     {
         this.mPublisher = new zmq.Publisher;
-        await this.mPublisher.bind(this.mPublisherEndpoint);
+        await this.mPublisher.bind(this.mEndpoint);
 
         await this.mResponse.Start();
         this.CheckHeartbeats();

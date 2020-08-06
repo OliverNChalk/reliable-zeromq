@@ -107,6 +107,11 @@ export class ZMQRequest
         return lPromise;
     }
 
+    public get Endpoint(): string
+    {
+        return this.mEndpoint;
+    }
+
     public async Send(aData: string): Promise<string>
     {
         // TODO: Build a way to safely send multiple requests without creating a backlog

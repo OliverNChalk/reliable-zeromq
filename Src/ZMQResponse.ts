@@ -9,7 +9,7 @@ export class ZMQResponse
     private mRouter!: zmq.Router;
     private readonly mEndpoint: string;
     private readonly mRequestHandler: (aRequest: string) => Promise<string>;
-    private readonly mCachedRequests: ExpiryMap<string, string> = new ExpiryMap(REQUEST_EXPIRY);
+    private readonly mCachedRequests: ExpiryMap<string, string | Promise<string>> = new ExpiryMap(REQUEST_EXPIRY);
 
     public constructor(aReplierEndpoint: string, aReceiver: (aRequest: string) => Promise<string>)
     {
@@ -23,13 +23,19 @@ export class ZMQResponse
         {
             // Forward requests to the registered handler
             const lMessageId: string = sender_uid.toString() + nonce.toString();
-            const lResponse: string | undefined = this.mCachedRequests.get(lMessageId);
+            const lResponse: string | Promise<string> | undefined = this.mCachedRequests.get(lMessageId);
 
             let lPromise: Promise<string>;
 
             if (!lResponse)
             {
                 lPromise = this.mRequestHandler(msg.toString());
+                this.mCachedRequests.set(lMessageId, lPromise);
+
+                lPromise.then((aResponse: string): void =>
+                {
+                    this.mCachedRequests.set(lMessageId, aResponse);
+                });
             }
             else
             {
@@ -38,10 +44,14 @@ export class ZMQResponse
 
             lPromise.then((aResponse: string): void =>
             {
-                this.mCachedRequests.set(lMessageId, aResponse);
-                this.mRouter.send([sender, nonce, aResponse]);  // Delimiter not necessary when talk to dealer
+                this.mRouter.send([sender, nonce, aResponse]);
             });
         }
+    }
+
+    public get Endpoint(): string
+    {
+        return this.mEndpoint;
     }
 
     public async Start(): Promise<void>
