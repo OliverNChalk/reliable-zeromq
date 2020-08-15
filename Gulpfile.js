@@ -93,7 +93,7 @@ gulp.task("coverage-report", done => {
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
-gulp.task("lint", done => {
+gulp.task("lint-fix", done => {
     exec(`${_TSLINT_} --project . --fix`, {}, (error, sout, serr) => {
         serr && console.error(serr);
         done(error);

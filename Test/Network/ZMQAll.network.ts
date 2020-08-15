@@ -3,13 +3,13 @@ import type { TestInterface } from "ava";
 import anyTest, { ExecutionContext } from "ava";
 import * as sinon from "sinon";
 import { ImportMock } from "ts-mock-imports";
-import { DUMMY_ENDPOINTS } from "../../Src/Constants";
 import { Delay } from "../../Src/Utils/Delay";
 import JSONBigInt from "../../Src/Utils/JSONBigInt";
 import { ZMQPublisher } from "../../Src/ZMQPublisher";
 import { ZMQRequest } from "../../Src/ZMQRequest";
 import { ZMQResponse } from "../../Src/ZMQResponse";
 import { TSubscriptionEndpoints, ZMQSubscriber } from "../../Src/ZMQSubscriber";
+import { DUMMY_ENDPOINTS } from "../Helpers/Constants";
 
 type TTestContext =
 {

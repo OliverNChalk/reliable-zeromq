@@ -1,11 +1,11 @@
 import { Queue } from "typescript-collections";
 import uniqid from "uniqid";
 import * as zmq from "zeromq";
-import { MAXIMUM_LATENCY } from "./Constants";
+import Config from "./Config";
 import { Delay } from "./Utils/Delay";
 
 const RESPONSE_TIMEOUT: number = 500;   // 500ms   (this includes computation time on the wrapped service)
-const ROUND_TRIP_MAX_TIME: number = 2 * MAXIMUM_LATENCY;
+const ROUND_TRIP_MAX_TIME: number = 2 * Config.MaximumLatency;
 const MAX_TIME_ERROR: string = "MAX ROUND TRIP TIME BREACHED, STOPPING";
 
 type TResolve = (aResult: string) => void;
@@ -24,11 +24,11 @@ type TSendRequest =
 
 export class ZMQRequest
 {
-    private mDealer!: zmq.Dealer;
     private readonly mEndpoint: string;
+    private readonly mOurUniqueId: string;
+    private mDealer!: zmq.Dealer;
     private mPendingRequests: Map<number, TResolveReject> = new Map();
     private mRequestNonce: number = 0;
-    private mOurUniqueId: string;
 
     // Message queueing
     private mSendQueue: Queue<TSendRequest> = new Queue();
@@ -54,6 +54,8 @@ export class ZMQRequest
         if (lResolver)
         {
             // TODO: Error via EventEmitter
+            console.error(`Request with ID ${aRequestId} timed out:`);
+            console.error(aRequest);
             throw new Error(MAX_TIME_ERROR);
         }
     }

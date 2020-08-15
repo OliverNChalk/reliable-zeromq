@@ -9,7 +9,6 @@
  - Performance Testing
  - Migrate to ESLint
  - Test multiple subscribers to one publisher (networked)
- - Proper config handling, Constants.ts is a bad idea
  
 ### Ideas:
  - Mock zmq functionality

@@ -73,6 +73,9 @@ test.serial("Start, Receive, Repeat", async(t: ExecutionContext<TTestContext>): 
     const lSendMock: Sinon.SinonStub = t.context.RouterMock.mock("send", Promise.resolve());
 
     await lResponse.Start();
+
+    t.is(lResponse.Endpoint, t.context.ResponderEndpoint);
+
     t.context.SendToReceiver([
         "sender",
         "unique_sender_id",

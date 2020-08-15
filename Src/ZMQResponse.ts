@@ -1,8 +1,8 @@
 import * as zmq from "zeromq";
-import { MAXIMUM_LATENCY } from "./Constants";
+import Config from "./Config";
 import ExpiryMap from "./Utils/ExpiryMap";
 
-const REQUEST_EXPIRY: number = 3 * MAXIMUM_LATENCY;   // 1 Minute
+const REQUEST_EXPIRY: number = 3 * Config.MaximumLatency;   // 1 Minute
 
 export class ZMQResponse
 {

@@ -4,10 +4,11 @@ import anyTest, { ExecutionContext } from "ava";
 import * as Sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
-import { DUMMY_ENDPOINTS, HEARTBEAT_INTERVAL } from "../Src/Constants";
+import Config from "../Src/Config";
 import JSONBigInt from "../Src/Utils/JSONBigInt";
 import { EMessageType, ZMQPublisher } from "../Src/ZMQPublisher";
 import * as ZMQResponse from "../Src/ZMQResponse";
+import { DUMMY_ENDPOINTS } from "./Helpers/Constants";
 import WaitFor from "./Helpers/WaitFor";
 
 type TTestContext =
@@ -62,6 +63,8 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
         PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,
         RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
     });
+
+    t.is(lPublisher.Endpoint, DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress);
 
     lZmqPublisher.mock("bind", Promise.resolve());
     lResponseMock.mock("Start", Promise.resolve());
@@ -160,7 +163,7 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
 
     t.is(lSendMock.callCount, 7);
     t.is(lPublisher["mTopicDetails"].size, 3);
-    clock.tick(HEARTBEAT_INTERVAL);
+    clock.tick(Config.HeartBeatInterval);
 
     await WaitFor(() => lPublisher["mPublishQueue"].size() === 0);
 
@@ -180,7 +183,7 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
     t.deepEqual(lHeartbeats, lExpectedHeartbeats);
     t.is(lSendMock.callCount, 10);
 
-    clock.tick(HEARTBEAT_INTERVAL);
+    clock.tick(Config.HeartBeatInterval);
 
     await WaitFor(() => lPublisher["mPublishQueue"].size() === 0);
 

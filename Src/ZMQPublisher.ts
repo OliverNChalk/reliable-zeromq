@@ -1,9 +1,6 @@
 import { Queue } from "typescript-collections";
 import * as zmq from "zeromq";
-import {
-    HEARTBEAT_INTERVAL,
-    PUBLISHER_CACHE_EXPIRY_MS,
-} from "./Constants";
+import Config from "./Config";
 import ExpiryMap from "./Utils/ExpiryMap";
 import JSONBigInt from "./Utils/JSONBigInt";
 import { ZMQResponse } from "./ZMQResponse";
@@ -58,7 +55,7 @@ export class ZMQPublisher
     {
         this.mTopicDetails.forEach(async(aValue: TTopicDetails, aKey: string): Promise<void> =>
         {
-            if (aValue.LatestMessageTimestamp + HEARTBEAT_INTERVAL <= Date.now())
+            if (aValue.LatestMessageTimestamp + Config.HeartBeatInterval <= Date.now())
             {
                 await this.QueuePublish(
                     [
@@ -71,7 +68,7 @@ export class ZMQPublisher
             }
         });
 
-        this.mHeartbeatTimeout = setTimeout(this.CheckHeartbeats, HEARTBEAT_INTERVAL);
+        this.mHeartbeatTimeout = setTimeout(this.CheckHeartbeats, Config.HeartBeatInterval);
     }
 
     private HandleRequest = (aMessage: string): Promise<string> =>
@@ -137,7 +134,7 @@ export class ZMQPublisher
         let lCache: ExpiryMap<number, string[]> | undefined = this.mMessageCaches.get(aTopic);
         if (!lCache)
         {
-            lCache = new ExpiryMap(PUBLISHER_CACHE_EXPIRY_MS);
+            lCache = new ExpiryMap(3 * Config.MaximumLatency);
             this.mMessageCaches.set(aTopic, lCache);
         }
 

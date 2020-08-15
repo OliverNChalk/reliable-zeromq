@@ -4,11 +4,11 @@ import anyTest, { ExecutionContext } from "ava";
 import sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
-import { DUMMY_ENDPOINTS } from "../Src/Constants";
 import JSONBigInt from "../Src/Utils/JSONBigInt";
 import { EMessageType, TRecoveryResponse } from "../Src/ZMQPublisher";
 import * as ZMQRequest from "../Src/ZMQRequest";
 import { TSubscriptionEndpoints, ZMQSubscriber } from "../Src/ZMQSubscriber";
+import { DUMMY_ENDPOINTS } from "./Helpers/Constants";
 import WaitFor from "./Helpers/WaitFor";
 
 type TAsyncIteratorResult = { value: any; done: boolean };

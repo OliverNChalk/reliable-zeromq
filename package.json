@@ -25,6 +25,7 @@
     "typescript": "3.9.5"
   },
   "scripts": {
+    "prepare": "gulp build",
     "test": "gulp test",
     "build": "gulp build",
     "tslint-check": "tslint --project .",

@@ -77,6 +77,8 @@ test.serial("Start, Send, Receive, Repeat", async(t: ExecutionContext<TTestConte
     const lDealerStub: MockManager<zmq.Dealer> = t.context.DealerMock;
     const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
 
+    t.is(lRequest.Endpoint, t.context.ResponderEndpoint);
+
     lRequest.Start();
 
     lDealerStub.mock("send", Promise.resolve());

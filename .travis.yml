@@ -6,7 +6,7 @@ install:
   - npm install -g codecov@3.7.0
   - npm ci
 script:
-  - gulp lint
+  - gulp lint-check
   - gulp build
   - gulp coverage
 after_success:
