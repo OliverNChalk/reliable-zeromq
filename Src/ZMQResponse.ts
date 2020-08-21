@@ -2,17 +2,16 @@ import * as zmq from "zeromq";
 import Config from "./Config";
 import ExpiryMap from "./Utils/ExpiryMap";
 
-const REQUEST_EXPIRY: number = 3 * Config.MaximumLatency;   // 1 Minute
-
 export class ZMQResponse
 {
     private mRouter!: zmq.Router;
     private readonly mEndpoint: string;
     private readonly mRequestHandler: (aRequest: string) => Promise<string>;
-    private readonly mCachedRequests: ExpiryMap<string, string | Promise<string>> = new ExpiryMap(REQUEST_EXPIRY);
+    private readonly mCachedRequests: ExpiryMap<string, string | Promise<string>>;
 
     public constructor(aReplierEndpoint: string, aReceiver: (aRequest: string) => Promise<string>)
     {
+        this.mCachedRequests = new ExpiryMap(3 * Config.MaximumLatency);    // 3 times latency assumption, this is a bit arbitrary
         this.mEndpoint = aReplierEndpoint;
         this.mRequestHandler = aReceiver;
     }
@@ -30,7 +29,7 @@ export class ZMQResponse
             if (!lResponse)
             {
                 lPromise = this.mRequestHandler(msg.toString());
-                this.mCachedRequests.set(lMessageId, lPromise);
+                this.mCachedRequests.set(lMessageId, lPromise); // TODO: Timer starts from when promise is inserted, this will cause issues if we move to an req, ack, rep model
 
                 lPromise.then((aResponse: string): void =>
                 {

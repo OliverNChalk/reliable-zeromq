@@ -5,7 +5,6 @@ import Config from "./Config";
 import { Delay } from "./Utils/Delay";
 
 const RESPONSE_TIMEOUT: number = 500;   // 500ms   (this includes computation time on the wrapped service)
-const ROUND_TRIP_MAX_TIME: number = 2 * Config.MaximumLatency;
 const MAX_TIME_ERROR: string = "MAX ROUND TRIP TIME BREACHED, STOPPING";
 
 type TResolve = (aResult: string) => void;
@@ -26,6 +25,7 @@ export class ZMQRequest
 {
     private readonly mEndpoint: string;
     private readonly mOurUniqueId: string;
+    private readonly mRoundTripMax: number;
     private mDealer!: zmq.Dealer;
     private mPendingRequests: Map<number, TResolveReject> = new Map();
     private mRequestNonce: number = 0;
@@ -35,13 +35,14 @@ export class ZMQRequest
 
     public constructor(aReceiverEndpoint: string)
     {
+        this.mRoundTripMax = Config.MaximumLatency * 2; // Send + response latency
         this.mEndpoint = aReceiverEndpoint;
         this.mOurUniqueId = uniqid();
     }
 
     private async ManageRequest(aRequestId: number, aRequest: string[]): Promise<void>
     {
-        const lMaximumSendTime: number = Date.now() + ROUND_TRIP_MAX_TIME;
+        const lMaximumSendTime: number = Date.now() + this.mRoundTripMax;
 
         await Delay(RESPONSE_TIMEOUT);
         while (this.mPendingRequests.has(aRequestId) && Date.now() < lMaximumSendTime)
