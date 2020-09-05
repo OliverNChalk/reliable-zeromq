@@ -5,7 +5,6 @@ import Config from "./Config";
 import { Delay } from "./Utils/Delay";
 
 const RESPONSE_TIMEOUT: number = 500;   // 500ms   (this includes computation time on the wrapped service)
-const MAX_TIME_ERROR: string = "MAX ROUND TRIP TIME BREACHED, STOPPING";
 
 type TResolve = (aResult: string) => void;
 type TReject = (aReason: any) => void;
@@ -21,9 +20,22 @@ type TSendRequest =
     Resolve: () => void;
 };
 
+export enum ERequestBody
+{
+    RequesterId,
+    Nonce,
+    Message,
+}
+
+export type TZMQRequestErrorHandlers =
+{
+    RequestTimeOut?: (aRequestId: number, aRequest: string[]) => void;
+};
+
 export class ZMQRequest
 {
     private readonly mEndpoint: string;
+    private readonly mErrorHandlers: TZMQRequestErrorHandlers;
     private readonly mOurUniqueId: string;
     private readonly mRoundTripMax: number;
     private mDealer!: zmq.Dealer;
@@ -33,37 +45,45 @@ export class ZMQRequest
     // Message queueing
     private mSendQueue: Queue<TSendRequest> = new Queue();
 
-    public constructor(aReceiverEndpoint: string)
+    public constructor(aReceiverEndpoint: string, aErrorHandlers: TZMQRequestErrorHandlers = {})
     {
         this.mRoundTripMax = Config.MaximumLatency * 2; // Send + response latency
         this.mEndpoint = aReceiverEndpoint;
         this.mOurUniqueId = uniqid();
+        this.mErrorHandlers = aErrorHandlers;
+    }
+
+    public get Endpoint(): string
+    {
+        return this.mEndpoint;
+    }
+
+    private AssertRequestProcessed(aRequestId: number, aRequest: string[]): void
+    {
+        const lResolver: TResolveReject | undefined = this.mPendingRequests.get(aRequestId);
+        if (lResolver && this.mErrorHandlers.RequestTimeOut)
+        {
+            this.mErrorHandlers.RequestTimeOut(aRequestId, aRequest);
+        }
     }
 
     private async ManageRequest(aRequestId: number, aRequest: string[]): Promise<void>
     {
         const lMaximumSendTime: number = Date.now() + this.mRoundTripMax;
-
         await Delay(RESPONSE_TIMEOUT);
+
         while (this.mPendingRequests.has(aRequestId) && Date.now() < lMaximumSendTime)
         {
             await this.SendMessage(aRequest);
             await Delay(RESPONSE_TIMEOUT);
         }
 
-        const lResolver: TResolveReject | undefined = this.mPendingRequests.get(aRequestId);
-        if (lResolver)
-        {
-            // TODO: Error via EventEmitter
-            console.error(`Request with ID ${aRequestId} timed out:`);
-            console.error(aRequest);
-            throw new Error(MAX_TIME_ERROR);
-        }
+        this.AssertRequestProcessed(aRequestId, aRequest);
     }
 
     private async ProcessSend(): Promise<void>
     {
-        const lNextSend: TSendRequest | undefined = this.mSendQueue.dequeue();
+        const lNextSend: TSendRequest | undefined = this.mSendQueue.dequeue();  // Don't we only want one send at a time?
 
         if (lNextSend)
         {
@@ -110,11 +130,6 @@ export class ZMQRequest
         return lPromise;
     }
 
-    public get Endpoint(): string
-    {
-        return this.mEndpoint;
-    }
-
     public async Send(aData: string): Promise<string>
     {
         // TODO: Build a way to safely send multiple requests without creating a backlog
@@ -131,7 +146,7 @@ export class ZMQRequest
             lRequestId.toString(),
             aData,
         ];
-        await this.SendMessage(lRequest);
+        await this.SendMessage(lRequest);   // Can potentially move this inside of ManageRequest loop
 
         this.ManageRequest(lRequestId, lRequest);
 
