@@ -8,8 +8,8 @@ import Config from "../Src/Config";
 import JSONBigInt from "../Src/Utils/JSONBigInt";
 import { EMessageType, ZMQPublisher } from "../Src/ZMQPublisher";
 import * as ZMQResponse from "../Src/ZMQResponse";
+import { YieldToEventLoop } from "./Helpers/AsyncTools";
 import { DUMMY_ENDPOINTS } from "./Helpers/Constants";
-import WaitFor from "./Helpers/WaitFor";
 
 type TTestContext =
 {
@@ -165,7 +165,7 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
     t.is(lPublisher["mTopicDetails"].size, 3);
     clock.tick(Config.HeartBeatInterval);
 
-    await WaitFor(() => lPublisher["mPublishQueue"].size() === 0);
+    await YieldToEventLoop();
 
     const lHeartbeats: string[][] =
     [
@@ -185,7 +185,7 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
 
     clock.tick(Config.HeartBeatInterval);
 
-    await WaitFor(() => lPublisher["mPublishQueue"].size() === 0);
+    await YieldToEventLoop();
 
     t.is(lSendMock.callCount, 13);
 });

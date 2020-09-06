@@ -8,8 +8,8 @@ import JSONBigInt from "../Src/Utils/JSONBigInt";
 import { EMessageType, TRecoveryResponse } from "../Src/ZMQPublisher";
 import * as ZMQRequest from "../Src/ZMQRequest";
 import { TSubscriptionEndpoints, ZMQSubscriber } from "../Src/ZMQSubscriber";
+import { YieldToEventLoop } from "./Helpers/AsyncTools";
 import { DUMMY_ENDPOINTS } from "./Helpers/Constants";
-import WaitFor from "./Helpers/WaitFor";
 
 type TAsyncIteratorResult = { value: any; done: boolean };
 type TTestContext =
@@ -209,8 +209,6 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
         },
     );
 
-    await setImmediate((): void => {});
-
     lSoloPublisher(
         [
             "myFirstTopic",
@@ -219,8 +217,7 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
             JSONBigInt.Stringify(t.context.TestData),
         ],
     );
-    await Promise.resolve();
-    await setImmediate((): void => {});
+    await YieldToEventLoop();
 
     t.true(lCalled);
 
@@ -274,7 +271,7 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
             const lTopic: TTopic = lTopics[aIndex];
             for (let i: number = 0; i < lTopic.test.length; ++i)
             {
-                await WaitFor((): boolean => lTopic.test[i].publish !== undefined);
+                await YieldToEventLoop();
                 lTopic.test[i].publish([
                     lTopic.topic,
                     EMessageType.PUBLISH,
@@ -285,8 +282,7 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
                 if (i + 1 === lTopic.test.length)
                 {
                     // Duplicate final message to test drop handling
-                    const lOldPublisher: (aZmqMessage: string[]) => void = lTopic.test[i].publish;
-                    await WaitFor((): boolean => lTopic.test[i].publish !== lOldPublisher);
+                    await YieldToEventLoop();
                     lTopic.test[i].publish([
                         lTopic.topic,
                         EMessageType.PUBLISH,
@@ -296,13 +292,8 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
                 }
             }
         }
-
-        await setImmediate((): void => {});
     }
-
-    await Promise.resolve();
-    await setImmediate((): void => {});
-    await process.nextTick((): void => {});
+    await YieldToEventLoop();
 
     for (const aEndpoint in lTestDataResult)
     {
@@ -316,8 +307,6 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
                 t.is(lTopic.test[i].data, lTopic.test[i].result);
             }
         }
-
-        await setImmediate((): void => {});
     }
 
     for (const aEndpoint in lTestDataResult)
@@ -402,10 +391,9 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
         .onCall(0).returns(Promise.resolve(JSONBigInt.Stringify(lStatusResponse)))
         .onCall(1).returns(Promise.resolve(JSONBigInt.Stringify(lWeatherResponse)));
 
-    await WaitFor((): boolean => lSubCallbacks[0] !== undefined);
+    await YieldToEventLoop();
     lSubCallbacks[0]({ value: ["TopicToTest", EMessageType.PUBLISH, "4", "Hello4"], done: false });
-
-    await WaitFor((): boolean => { return lResults.length === 4; });
+    await YieldToEventLoop();
 
     t.is(lSendMock.getCall(0).args[0], JSONBigInt.Stringify(["TopicToTest", 1, 2, 3]));
     t.is(lResults[0], "Hello4");    // Initial message first, followed by recovered messages in order
@@ -414,16 +402,15 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
     t.is(lResults[3], "Hello3");
 
     lSubCallbacks[1]({ value: ["Sydney", EMessageType.HEARTBEAT, "0", ""], done: false });
-    await setImmediate((): void => {});
     t.is(
         lSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress)!
             .TopicEntries.get("Sydney")!.Nonce,
         0,
     );
 
-    await WaitFor((): boolean => { return lSubCallbacks[3] !== undefined; });
+    await YieldToEventLoop();
     lSubCallbacks[3]({ value: ["Sydney", EMessageType.HEARTBEAT, "5", ""], done: false });
-    await WaitFor((): boolean => { return lResults.length === 9; });
+    await YieldToEventLoop();
 
     t.is(lSendMock.getCall(1).args[0], JSONBigInt.Stringify(["Sydney", 1, 2, 3, 4, 5]));
     t.is(lResults[4], "Rainy");
@@ -449,26 +436,26 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
     );
     t.is(lResults.length, 9);
 
-    await WaitFor((): boolean => { return lSubCallbacks[4] !== undefined; });
+    await YieldToEventLoop();
     lSubCallbacks[4]({ value: ["Sydney", EMessageType.PUBLISH, "5", "Overcast"], done: false });
-    await WaitFor((): boolean => { return lSubCallbacks[5] !== undefined; });
+    await YieldToEventLoop();
     lSubCallbacks[5]({ value: ["Sydney", EMessageType.PUBLISH, "4", "Sunny"], done: false });
-    await WaitFor((): boolean => { return lSubCallbacks[6] !== undefined; });
+    await YieldToEventLoop();
     lSubCallbacks[6]({ value: ["Sydney", EMessageType.PUBLISH, "3", "Cloudy"], done: false });
-    await WaitFor((): boolean => { return lSubCallbacks[7] !== undefined; });
+    await YieldToEventLoop();
     lSubCallbacks[7]({ value: ["Sydney", EMessageType.HEARTBEAT, "2", ""], done: false });
-    await WaitFor((): boolean => { return lSubCallbacks[8] !== undefined; });
+    await YieldToEventLoop();
     lSubCallbacks[8]({ value: ["Sydney", EMessageType.HEARTBEAT, "5", ""], done: false });
-    await WaitFor((): boolean => { return lSubCallbacks[9] !== undefined; });
+    await YieldToEventLoop();
     lSubCallbacks[9]({ value: ["Sydney", EMessageType.HEARTBEAT, "4", ""], done: false });
-    await WaitFor((): boolean => { return lSubCallbacks[10] !== undefined; });
+    await YieldToEventLoop();
     lSubCallbacks[10]({ value: ["Sydney", EMessageType.HEARTBEAT, "3", ""], done: false });
 
     t.is(lResults.length, 9);
 
-    await WaitFor((): boolean => { return lSubCallbacks[11] !== undefined; });
+    await YieldToEventLoop();
     lSubCallbacks[11]({ value: ["Sydney", EMessageType.PUBLISH, "6", "NewWeather"], done: false });
-    await WaitFor((): boolean => { return lResults.length > 9; });
+    await YieldToEventLoop();
 
     t.is(lResults[9], "NewWeather");
     t.is(lResults[10], "NewWeather");

@@ -7,7 +7,7 @@ import * as zmq from "zeromq";
 import Config from "../Src/Config";
 import JSONBigInt from "../Src/Utils/JSONBigInt";
 import { ERequestBody, ZMQRequest } from "../Src/ZMQRequest";
-import { YieldToEventLoop } from "./Helpers/WaitFor";
+import { YieldToEventLoop } from "./Helpers/AsyncTools";
 
 type TAsyncIteratorResult = { value: any; done: boolean };
 type TTestContext =
@@ -136,7 +136,6 @@ test.serial("Error: Maximum Latency", async(t: ExecutionContext<TTestContext>): 
 
     const lFirstResponsePromise: Promise<string> = lRequest.Send(JSONBigInt.Stringify("hello"));
 
-    await Promise.resolve();
     t.context.SendToReceiver([JSONBigInt.Stringify(0), "world"]);
 
     clock.tick(500);
