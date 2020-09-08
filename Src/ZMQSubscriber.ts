@@ -3,12 +3,13 @@ import { TCacheError } from "./Errors";
 import JSONBigInt from "./Utils/JSONBigInt";
 import {
     EMessageType,
-    EPublishMessage, PUBLISHER_CACHE_EXPIRED,
+    EPublishMessage,
+    PUBLISHER_CACHE_EXPIRED,
     TPublisherMessage,
     TRecoveryRequest,
     TRecoveryResponse,
 } from "./ZMQPublisher";
-import { ZMQRequest } from "./ZMQRequest";
+import { TRequestResponse, ZMQRequest } from "./ZMQRequest";
 
 export type SubscriptionCallback = (aMessage: string) => void;
 
@@ -67,7 +68,7 @@ export class ZMQSubscriber
 
         const lSocketEntry: TEndpointEntry = {
             Subscriber: lSubSocket,
-            Requester: new ZMQRequest(aEndpoint.RequestAddress, { RequestTimeOut: (): void => {} }),    // TODO: Handle potential errors
+            Requester: new ZMQRequest(aEndpoint.RequestAddress),
             TopicEntries: new Map<string, TTopicEntry>(),
         };
         lSocketEntry.Requester.Start();
@@ -110,11 +111,22 @@ export class ZMQSubscriber
         );
     }
 
+    private EmitCacheError(aEndpoint: TSubscriptionEndpoints, aTopic: string, aMessageId: number): void
+    {
+        this.mErrorHandlers.CacheError(
+            {
+                Endpoint: aEndpoint,
+                Topic: aTopic,
+                MessageId: aMessageId,
+            },
+        );
+    }
+
     private ProcessNonce(
         aEndpoint: TSubscriptionEndpoints,
         aTopic: string,
         aNonce: number,
-        aHeartbeat: boolean = false,
+        aHeartbeat: boolean = false,    // TODO: Refactor to remove this boolean
     ): boolean
     {
         const lEndpoint: TEndpointEntry = this.mEndpoints.get(aEndpoint.PublisherAddress)!;
@@ -130,7 +142,9 @@ export class ZMQSubscriber
         }
         else if (aNonce > lExpectedNonce)
         {
-            const lStart: number = lExpectedNonce === 0 ? 1 : lExpectedNonce;   // No message zero in this protocol
+            let lStart: number = lExpectedNonce === 0 ? 1 : lExpectedNonce; // No message zero in this protocol
+            aHeartbeat && lStart > 1 ? lStart++ : lStart; // Have to increment by what we subtracted, will address this in future refactor
+
             const lEnd: number = aHeartbeat ? aNonce : aNonce - 1;
 
             const lMissingNonces: number[] = [];
@@ -173,24 +187,32 @@ export class ZMQSubscriber
         // TODO: Check for possibility that a messages gets played twice, I think I handled this via nonce...
         const lFormattedRequest: TRecoveryRequest = [aTopic, ...aMessageIds];   // PERF: Array manipulation
 
-        const lMissingMessages: string = await aEndpointEntry.Requester.Send(JSONBigInt.Stringify(lFormattedRequest));
-        const lParsedMessages: TRecoveryResponse = JSONBigInt.Parse(lMissingMessages.toString());
+        const lMissingMessages: TRequestResponse
+            = await aEndpointEntry.Requester.Send(JSONBigInt.Stringify(lFormattedRequest));
 
-        for (let i: number = 0; i < lParsedMessages.length; ++i)
+        if (typeof lMissingMessages === "string")
         {
-            const lParsedMessage: string[] = lParsedMessages[i];
-            if (lParsedMessage[0] === PUBLISHER_CACHE_EXPIRED)
-            {
-                this.mErrorHandlers.CacheError(
-                    {
-                        Endpoint: aEndpoint,
-                        Topic: aTopic,
-                        MessageId: aMessageIds[i],
-                    },
-                );
-            }
+            const lParsedMessages: TRecoveryResponse = JSONBigInt.Parse(lMissingMessages.toString());
 
-            this.CallSubscribers(aEndpoint, aTopic, lParsedMessage[EPublishMessage.Message]);
+            for (let i: number = 0; i < lParsedMessages.length; ++i)
+            {
+                const lParsedMessage: string[] = lParsedMessages[i];
+                if (lParsedMessage[0] === PUBLISHER_CACHE_EXPIRED)
+                {
+                    this.EmitCacheError(aEndpoint, aTopic, aMessageIds[i]);
+                }
+                else
+                {
+                    this.CallSubscribers(aEndpoint, aTopic, lParsedMessage[EPublishMessage.Message]);
+                }
+            }
+        }
+        else
+        {
+            for (let i: number = 0; i < aMessageIds.length; ++i)
+            {
+                this.EmitCacheError(aEndpoint, aTopic, aMessageIds[i]);
+            }
         }
     }
 

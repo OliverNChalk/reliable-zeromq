@@ -14,7 +14,8 @@
     "**/*.d.ts",
     "**/*.test.ts",
     "**/Gulpfile.js",
-    "**/*.network.js"
+    "**/*.network.js",
+    "**/*.data.ts"
   ],
   "sourceMap": true,
   "reporter": [

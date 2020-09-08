@@ -6,7 +6,7 @@ import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
 import Config from "../Src/Config";
 import JSONBigInt from "../Src/Utils/JSONBigInt";
-import { ERequestBody, ZMQRequest } from "../Src/ZMQRequest";
+import { ERequestBody, TRequestResponse, ZMQRequest } from "../Src/ZMQRequest";
 import { YieldToEventLoop } from "./Helpers/AsyncTools";
 
 type TAsyncIteratorResult = { value: any; done: boolean };
@@ -77,14 +77,14 @@ test.afterEach((t: ExecutionContext<TTestContext>): void =>
 test.serial("Start, Send, Receive, Repeat", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
     const lDealerStub: MockManager<zmq.Dealer> = t.context.DealerMock;
-    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint, { RequestTimeOut: (): void => {} });
+    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
 
     t.is(lRequest.Endpoint, t.context.ResponderEndpoint);
 
     lRequest.Start();
 
     lDealerStub.mock("send", Promise.resolve());
-    const lRequestPromise: Promise<string> = lRequest.Send(JSONBigInt.Stringify(t.context.TestData));
+    const lRequestPromise: Promise<TRequestResponse> = lRequest.Send(JSONBigInt.Stringify(t.context.TestData));
 
     const lResponse: string[] =
     [
@@ -93,7 +93,7 @@ test.serial("Start, Send, Receive, Repeat", async(t: ExecutionContext<TTestConte
     ];
     t.context.SendToReceiver(lResponse);
 
-    const lPromiseResult: string = await lRequestPromise;
+    const lPromiseResult: TRequestResponse = await lRequestPromise;
 
     t.is(lPromiseResult, lResponse[1]);
 
@@ -105,36 +105,76 @@ test.serial("Start, Send, Receive, Repeat", async(t: ExecutionContext<TTestConte
     });
 
     lRequest.Start();
-    const lNotThrowPromise: Promise<string> = lRequest.Send("this should not throw");
+    const lNotThrowPromise: Promise<TRequestResponse> = lRequest.Send("this should not throw");
 
     t.context.SendToReceiver([JSONBigInt.Stringify(1), "all okay"]);
-    const lNotThrowResult: string = await lNotThrowPromise;
+    const lNotThrowResult: TRequestResponse = await lNotThrowPromise;
 
     t.is(lNotThrowResult, "all okay");
 
     lRequest.Stop();
 });
 
+test.serial("Degraded Connection", async(t: ExecutionContext<TTestContext>): Promise<void> =>
+{
+    const clock: sinon.SinonFakeTimers = sinon.useFakeTimers();
+    const lDealerStub: MockManager<zmq.Dealer> = t.context.DealerMock;
+    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
+
+    t.is(lRequest.Endpoint, t.context.ResponderEndpoint);
+
+    lRequest.Start();
+
+    lDealerStub.mock("send", Promise.resolve());
+    const lRequestPromise: Promise<TRequestResponse> = lRequest.Send(JSONBigInt.Stringify(t.context.TestData));
+
+    const lResponse: string[] =
+    [
+        JSONBigInt.Stringify(0),
+        "dummy message",
+    ];
+
+    // Send response with 2200ms delay
+    await YieldToEventLoop();   // Sinon timers don't seem super reliable at triggering timeouts
+    clock.tick(501);
+    await YieldToEventLoop();
+    t.context.SendToReceiver(lResponse);
+
+    const lPromiseResult: TRequestResponse = await lRequestPromise;
+
+    t.is(lPromiseResult, lResponse[1]);
+
+    const lSecondRequest: Promise<TRequestResponse> = lRequest.Send("MyTestDelayedResponse");
+    const lSecondResponse: string[] =
+    [
+        JSONBigInt.Stringify(1),
+        "another response",
+    ];
+
+    // Send 3 responses (2 duplicates) with 2200ms delay
+    await YieldToEventLoop();
+    clock.tick(501);
+    await YieldToEventLoop();
+
+    t.context.SendToReceiver(lSecondResponse);
+    await YieldToEventLoop();   // Necessary to allow AsyncIterator.next() to be called and SendToReceiver to be setup
+    t.context.SendToReceiver(lSecondResponse);
+    await YieldToEventLoop();   // Necessary to allow AsyncIterator.next() to be called and SendToReceiver to be setup
+    t.context.SendToReceiver(lSecondResponse);
+
+    t.is(await lSecondRequest, lSecondResponse[1]);
+});
+
 test.serial("Error: Maximum Latency", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
     const clock: sinon.SinonFakeTimers = sinon.useFakeTimers();
     const lDealerStub: MockManager<zmq.Dealer> = t.context.DealerMock;
-
-    let lErrorReceived: boolean = false;
-    const lErrorHandler = (aRequestId: number, aRequest: string[]): void =>
-    {
-        t.is(aRequestId, 1);
-        t.is(aRequest[ERequestBody.Nonce], "1");         // Nonce
-        t.is(aRequest[ERequestBody.Message], "\"hello\"");   // Request
-        lErrorReceived = true;
-    };
-
-    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint, { RequestTimeOut: lErrorHandler });
+    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
 
     lRequest.Start();
     lDealerStub.mock("send", Promise.resolve());
 
-    const lFirstResponsePromise: Promise<string> = lRequest.Send(JSONBigInt.Stringify("hello"));
+    const lFirstResponsePromise: Promise<TRequestResponse> = lRequest.Send(JSONBigInt.Stringify("hello"));
 
     t.context.SendToReceiver([JSONBigInt.Stringify(0), "world"]);
 
@@ -142,11 +182,22 @@ test.serial("Error: Maximum Latency", async(t: ExecutionContext<TTestContext>): 
 
     t.is(await lFirstResponsePromise, "world");
 
-    lRequest.Send(JSONBigInt.Stringify("hello"));
+    const lFailedRequest: Promise<TRequestResponse> = lRequest.Send(JSONBigInt.Stringify("hello"));
     await YieldToEventLoop();
 
     clock.tick(Config.MaximumLatency * 2 + 600);    // 500ms represents the polling interval in ZMQRequest
     await YieldToEventLoop();
 
-    t.is(lErrorReceived, true);
+    const lFailedResult: TRequestResponse = await lFailedRequest;
+
+    if (typeof lFailedResult !== "string")
+    {
+        t.is(lFailedResult.RequestId, 1);
+        t.is(lFailedResult.Request[ERequestBody.Nonce], "1");
+        t.is(lFailedResult.Request[ERequestBody.Message], "\"hello\"");
+    }
+    else
+    {
+        t.fail("lFailedRequest should have resolved to TRequestTimeOut");
+    }
 });

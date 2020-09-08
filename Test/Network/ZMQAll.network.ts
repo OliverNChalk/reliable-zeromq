@@ -6,10 +6,10 @@ import { ImportMock } from "ts-mock-imports";
 import { Delay } from "../../Src/Utils/Delay";
 import JSONBigInt from "../../Src/Utils/JSONBigInt";
 import { ZMQPublisher } from "../../Src/ZMQPublisher";
-import { ZMQRequest } from "../../Src/ZMQRequest";
+import { TRequestResponse, ZMQRequest } from "../../Src/ZMQRequest";
 import { ZMQResponse } from "../../Src/ZMQResponse";
 import { TSubscriptionEndpoints, ZMQSubscriber } from "../../Src/ZMQSubscriber";
-import { DUMMY_ENDPOINTS } from "../Helpers/Constants";
+import { DUMMY_ENDPOINTS } from "../Helpers/DummyEndpoints.data";
 
 type TTestContext =
 {
@@ -72,15 +72,22 @@ test.serial("ZMQRequest: Start, Send, Receive, Repeat", async(t: ExecutionContex
             data: lResult,
         });
     });
-    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint, { RequestTimeOut: (): void => {} });
+    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
 
     lRequest.Start();
     await lResponse.Start();
 
-    const lPromiseResult: string = await lRequest.Send(JSONBigInt.Stringify(t.context.TestData));
+    const lPromiseResult: TRequestResponse = await lRequest.Send(JSONBigInt.Stringify(t.context.TestData));
     lExpected.data = t.context.TestData;
 
-    t.deepEqual(JSONBigInt.Parse(lPromiseResult), lExpected);
+    if (typeof lPromiseResult !== "string")
+    {
+        t.fail(`Request failed: ${lPromiseResult.RequestId}`);
+    }
+    else
+    {
+        t.deepEqual(JSONBigInt.Parse(lPromiseResult), lExpected);
+    }
 
     lRequest.Stop();
 
@@ -91,10 +98,17 @@ test.serial("ZMQRequest: Start, Send, Receive, Repeat", async(t: ExecutionContex
 
     lRequest.Start();
 
-    const lNotThrowResult: string = await lRequest.Send("this should not throw");
+    const lNotThrowResult: TRequestResponse = await lRequest.Send("this should not throw");
     lExpected.data = "this should not throw";
 
-    t.deepEqual(JSONBigInt.Parse(lNotThrowResult), lExpected);
+    if (typeof lNotThrowResult !== "string")
+    {
+        t.fail(`Request failed: ${lNotThrowResult.RequestId}`);
+    }
+    else
+    {
+        t.deepEqual(JSONBigInt.Parse(lNotThrowResult), lExpected);
+    }
 
     lRequest.Stop();
     lResponse.Stop();
@@ -109,13 +123,13 @@ test.serial("ZMQResponse: Start, Receive, Repeat", async(t: ExecutionContext<TTe
     };
 
     t.context.ResponderEndpoint = "tcp://127.0.0.1:4276";
-    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint, { RequestTimeOut: (): void => {} });
+    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
     const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, lResponderRouter);
 
     lRequest.Start();
 
     await lResponse.Start();
-    const lFirstResponse: string = await lRequest.Send("hello");
+    const lFirstResponse: TRequestResponse = await lRequest.Send("hello");
 
     t.is(lFirstResponse, "world");
     t.is(lResponse["mCachedRequests"].size, 1);
@@ -124,7 +138,7 @@ test.serial("ZMQResponse: Start, Receive, Repeat", async(t: ExecutionContext<TTe
     await lResponse.Start();
 
     lResponder = async(aMsg: string): Promise<string> => aMsg + " response";
-    const lSecondResponse: string = await lRequest.Send("hello");
+    const lSecondResponse: TRequestResponse = await lRequest.Send("hello");
 
     t.is(lSecondResponse, "hello response");
     t.is(lResponse["mCachedRequests"].size, 2);
