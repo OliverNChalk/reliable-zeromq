@@ -1,9 +1,14 @@
 import * as zmq from "zeromq";
+import { TCacheError } from "./Errors";
 import JSONBigInt from "./Utils/JSONBigInt";
-import { EMessageType, EPublishMessage, TPublisherMessage, TRecoveryRequest, TRecoveryResponse } from "./ZMQPublisher";
+import {
+    EMessageType,
+    EPublishMessage, PUBLISHER_CACHE_EXPIRED,
+    TPublisherMessage,
+    TRecoveryRequest,
+    TRecoveryResponse,
+} from "./ZMQPublisher";
 import { ZMQRequest } from "./ZMQRequest";
-
-const UNKNOWN_SUBSCRIPTION: string = "ERROR: CANNOT UNSUBSCRIBE FROM UNDEFINED SUBSCRIPTION";
 
 export type SubscriptionCallback = (aMessage: string) => void;
 
@@ -32,9 +37,15 @@ export type TSubscriptionEndpoints =
     RequestAddress: string;
 };
 
+export type TZMQSubscriberErrorHandlers =
+{
+    CacheError: (aError: TCacheError) => void;
+};
+
 export class ZMQSubscriber
 {
-    private mEndpoints: Map<string, TEndpointEntry> = new Map<string, TEndpointEntry>();
+    private readonly mEndpoints: Map<string, TEndpointEntry> = new Map<string, TEndpointEntry>();
+    private readonly mErrorHandlers: TZMQSubscriberErrorHandlers;
     private mSubscriptions: Map<number, TInternalSubscription> = new Map();
     private mTokenId: number = 0;
 
@@ -43,17 +54,20 @@ export class ZMQSubscriber
         return ++this.mTokenId;
     }
 
-    public constructor()
-    {}
+    public constructor(aErrorHandlers: TZMQSubscriberErrorHandlers)
+    {
+        this.mErrorHandlers = aErrorHandlers;
+    }
 
     private async AddSubscriptionEndpoint(aEndpoint: TSubscriptionEndpoints): Promise<void>
     {
+        // TODO: Refactor this monster method into collection of smaller methods
         const lSubSocket: zmq.Subscriber = new zmq.Subscriber;
         lSubSocket.connect(aEndpoint.PublisherAddress);
 
         const lSocketEntry: TEndpointEntry = {
             Subscriber: lSubSocket,
-            Requester: new ZMQRequest(aEndpoint.RequestAddress),
+            Requester: new ZMQRequest(aEndpoint.RequestAddress, { RequestTimeOut: (): void => {} }),    // TODO: Handle potential errors
             TopicEntries: new Map<string, TTopicEntry>(),
         };
         lSocketEntry.Requester.Start();
@@ -80,23 +94,20 @@ export class ZMQSubscriber
                 if (this.ProcessNonce(aEndpoint, lTopic, lNonce))
                 {
                     // Forwards messages to their relevant subscriber
-                    const lTopicCallbacks: Map<number, SubscriptionCallback>
-                        = lSocketEntry.TopicEntries.get(lTopic)!.Callbacks;
-
-                    if (lTopicCallbacks.size > 0)
-                    {
-                        lTopicCallbacks.forEach((aCallback: SubscriptionCallback): void =>
-                        {
-                            aCallback(lMessage);
-                        });
-                    }
-                    else
-                    {
-                        throw new Error("ERROR: No registered callbacks for this topic");
-                    }
+                    this.CallSubscribers(aEndpoint, lTopic, lMessage);
                 }
             }
         }
+    }
+
+    private CallSubscribers(aEndpoint: TSubscriptionEndpoints, aTopic: string, aMessage: string): void
+    {
+        this.mEndpoints.get(aEndpoint.PublisherAddress)!.TopicEntries.get(aTopic)!.Callbacks.forEach(
+            (aCallback: SubscriptionCallback): void =>
+            {
+                aCallback(aMessage);
+            },
+        );
     }
 
     private ProcessNonce(
@@ -112,6 +123,7 @@ export class ZMQSubscriber
         const lExpectedNonce: number = aHeartbeat ? lLastSeenNonce : lLastSeenNonce + 1;
         let lCallCallback: boolean = true;
 
+        // TODO: Refactor into collection of smaller methods
         if (aNonce === lExpectedNonce)
         {
             lTopicEntry.Nonce = aNonce;
@@ -138,6 +150,19 @@ export class ZMQSubscriber
         return lCallCallback;
     }
 
+    private PruneTopicIfEmpty(
+        lTopicEntry: TTopicEntry,
+        lEndpoint: TEndpointEntry,
+        lInternalSubscription: TInternalSubscription,
+    ): void
+    {
+        if (lTopicEntry.Callbacks.size === 0)
+        {
+            lEndpoint.Subscriber.unsubscribe(lInternalSubscription.Topic);
+            lEndpoint.TopicEntries.delete(lInternalSubscription.Topic);
+        }
+    }
+
     private async RecoverMissingMessages(
         aEndpoint: TSubscriptionEndpoints,
         aTopic: string,
@@ -145,19 +170,28 @@ export class ZMQSubscriber
         aMessageIds: number[],
     ): Promise<void>
     {
+        // TODO: Check for possibility that a messages gets played twice, I think I handled this via nonce...
         const lFormattedRequest: TRecoveryRequest = [aTopic, ...aMessageIds];   // PERF: Array manipulation
 
         const lMissingMessages: string = await aEndpointEntry.Requester.Send(JSONBigInt.Stringify(lFormattedRequest));
         const lParsedMessages: TRecoveryResponse = JSONBigInt.Parse(lMissingMessages.toString());
 
-        lParsedMessages.forEach((aParsedMessage: string[]): void =>
+        for (let i: number = 0; i < lParsedMessages.length; ++i)
         {
-            this.mEndpoints.get(aEndpoint.PublisherAddress)!.TopicEntries.get(aTopic)!.Callbacks.forEach(
-            (aCallback: SubscriptionCallback): void =>
+            const lParsedMessage: string[] = lParsedMessages[i];
+            if (lParsedMessage[0] === PUBLISHER_CACHE_EXPIRED)
             {
-                aCallback(aParsedMessage[EPublishMessage.Message]);
-            });
-        });
+                this.mErrorHandlers.CacheError(
+                    {
+                        Endpoint: aEndpoint,
+                        Topic: aTopic,
+                        MessageId: aMessageIds[i],
+                    },
+                );
+            }
+
+            this.CallSubscribers(aEndpoint, aTopic, lParsedMessage[EPublishMessage.Message]);
+        }
     }
 
     public Stop(): void
@@ -208,22 +242,15 @@ export class ZMQSubscriber
     {
         const lInternalSubscription: TInternalSubscription | undefined = this.mSubscriptions.get(aSubscriptionId);
 
-        if (!lInternalSubscription)
+        if (lInternalSubscription)
         {
-            throw new Error(UNKNOWN_SUBSCRIPTION);
-        }
+            const lEndpoint: TEndpointEntry = this.mEndpoints.get(lInternalSubscription.Endpoint)!;
+            const lTopicEntry: TTopicEntry = lEndpoint.TopicEntries.get(lInternalSubscription.Topic)!;
 
-        const lEndpoint: TEndpointEntry = this.mEndpoints.get(lInternalSubscription.Endpoint)!;
-        const lTopicEntry: TTopicEntry = lEndpoint.TopicEntries.get(lInternalSubscription.Topic)!;
+            lTopicEntry.Callbacks.delete(aSubscriptionId);
+            this.mSubscriptions.delete(aSubscriptionId);
 
-        lTopicEntry.Callbacks.delete(aSubscriptionId);
-        this.mSubscriptions.delete(aSubscriptionId);
-
-        if (lTopicEntry.Callbacks.size === 0)
-        {
-            lEndpoint.Subscriber.unsubscribe(lInternalSubscription.Topic);
-            lEndpoint.TopicEntries.delete(lInternalSubscription.Topic);
+            this.PruneTopicIfEmpty(lTopicEntry, lEndpoint, lInternalSubscription);
         }
     }
-
 }

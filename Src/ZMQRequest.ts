@@ -29,7 +29,7 @@ export enum ERequestBody
 
 export type TZMQRequestErrorHandlers =
 {
-    RequestTimeOut?: (aRequestId: number, aRequest: string[]) => void;
+    RequestTimeOut: (aRequestId: number, aRequest: string[]) => void;
 };
 
 export class ZMQRequest
@@ -45,7 +45,7 @@ export class ZMQRequest
     // Message queueing
     private mSendQueue: Queue<TSendRequest> = new Queue();
 
-    public constructor(aReceiverEndpoint: string, aErrorHandlers: TZMQRequestErrorHandlers = {})
+    public constructor(aReceiverEndpoint: string, aErrorHandlers: TZMQRequestErrorHandlers)
     {
         this.mRoundTripMax = Config.MaximumLatency * 2; // Send + response latency
         this.mEndpoint = aReceiverEndpoint;
@@ -61,7 +61,7 @@ export class ZMQRequest
     private AssertRequestProcessed(aRequestId: number, aRequest: string[]): void
     {
         const lResolver: TResolveReject | undefined = this.mPendingRequests.get(aRequestId);
-        if (lResolver && this.mErrorHandlers.RequestTimeOut)
+        if (lResolver)
         {
             this.mErrorHandlers.RequestTimeOut(aRequestId, aRequest);
         }
@@ -135,6 +135,7 @@ export class ZMQRequest
         // TODO: Build a way to safely send multiple requests without creating a backlog
         if (!this.mDealer)
         {
+            // TODO: Do we really want stop functionality? Probably just Close()
             throw new Error("Attempted to send while stopped");
         }
 

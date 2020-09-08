@@ -77,7 +77,7 @@ test.afterEach((t: ExecutionContext<TTestContext>): void =>
 test.serial("Start, Send, Receive, Repeat", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
     const lDealerStub: MockManager<zmq.Dealer> = t.context.DealerMock;
-    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
+    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint, { RequestTimeOut: (): void => {} });
 
     t.is(lRequest.Endpoint, t.context.ResponderEndpoint);
 

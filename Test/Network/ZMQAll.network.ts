@@ -72,7 +72,7 @@ test.serial("ZMQRequest: Start, Send, Receive, Repeat", async(t: ExecutionContex
             data: lResult,
         });
     });
-    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
+    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint, { RequestTimeOut: (): void => {} });
 
     lRequest.Start();
     await lResponse.Start();
@@ -109,7 +109,7 @@ test.serial("ZMQResponse: Start, Receive, Repeat", async(t: ExecutionContext<TTe
     };
 
     t.context.ResponderEndpoint = "tcp://127.0.0.1:4276";
-    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
+    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint, { RequestTimeOut: (): void => {} });
     const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, lResponderRouter);
 
     lRequest.Start();
@@ -135,15 +135,25 @@ test.serial("ZMQResponse: Start, Receive, Repeat", async(t: ExecutionContext<TTe
 
 test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
-    const lStatusUpdatePublisher: ZMQPublisher = new ZMQPublisher({
-        PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,
-        RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
-    });
-    const lWeatherUpdatePublisher: ZMQPublisher = new ZMQPublisher({
-        PublisherAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress,
-        RequestAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.RequestAddress,
-    });
-    const lSubscriber: ZMQSubscriber = new ZMQSubscriber();
+    const lStatusUpdatePublisher: ZMQPublisher = new ZMQPublisher(
+        {
+            PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,
+            RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
+        },
+        {
+            CacheError: (): void => {},
+        },
+    );
+    const lWeatherUpdatePublisher: ZMQPublisher = new ZMQPublisher(
+        {
+            PublisherAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress,
+            RequestAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.RequestAddress,
+        },
+        {
+            CacheError: (): void => {},
+        },
+    );
+    const lSubscriber: ZMQSubscriber = new ZMQSubscriber({ CacheError: (): void => {} });
 
     await lStatusUpdatePublisher.Start();
     await lWeatherUpdatePublisher.Start();

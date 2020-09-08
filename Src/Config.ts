@@ -14,6 +14,26 @@ export default class Config
         return this.mHeartbeatInterval;
     }
 
+    public static set MaximumLatency(aMaximumLatency: number)
+    {
+        if (aMaximumLatency < this.mHeartbeatInterval)
+        {
+            throw new Error("Heartbeat must be lower than maximum latency");
+        }
+
+        this.mMaximumLatency = aMaximumLatency;
+    }
+
+    public static set HeartBeatInterval(aHeartbeatInterval: number)
+    {
+        if (aHeartbeatInterval > this.mMaximumLatency)
+        {
+            throw new Error("Heartbeat must be lower than maximum latency");
+        }
+
+        this.mHeartbeatInterval = aHeartbeatInterval;
+    }
+
     public static SetGlobalConfig(aMaximumLatency: number, aHeartbeat: number = 1000): void
     {
         if (aMaximumLatency < aHeartbeat)

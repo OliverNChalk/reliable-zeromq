@@ -191,7 +191,7 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
 
     // END SETUP
 
-    const lSubscriber: ZMQSubscriber = new ZMQSubscriber();
+    const lSubscriber: ZMQSubscriber = new ZMQSubscriber({ CacheError: (): void => {} });
 
     lSubscriber.Stop();
 
@@ -322,9 +322,6 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
 
         t.is(lSubscriber["mEndpoints"].get(aEndpoint)!.TopicEntries.size, 0);
     }
-
-    t.throws((): void => { lSubscriber.Unsubscribe(0); });
-
 });
 
 test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestContext>): Promise<void> =>
@@ -348,7 +345,7 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
     const lIteratorStub: Sinon.SinonStub = lZmqSubscriberMock.mock(Symbol.asyncIterator, lNewIterator);
     lIteratorStub.callsFake(lNewIterator);
 
-    const lSubscriber: ZMQSubscriber = new ZMQSubscriber();
+    const lSubscriber: ZMQSubscriber = new ZMQSubscriber({ CacheError: (): void => {} });
 
     const lSubscriptionIds: number[] = [];
     const lResults: string[] = [];

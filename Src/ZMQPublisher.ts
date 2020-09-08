@@ -1,13 +1,13 @@
 import { Queue } from "typescript-collections";
 import * as zmq from "zeromq";
 import Config from "./Config";
+import { TCacheError } from "./Errors";
 import ExpiryMap from "./Utils/ExpiryMap";
 import JSONBigInt from "./Utils/JSONBigInt";
 import { ZMQResponse } from "./ZMQResponse";
 import { TSubscriptionEndpoints } from "./ZMQSubscriber";
 
-const CACHE_ERROR: string = "PUBLISHER ERROR: MESSAGE NOT IN CACHE";
-const BAD_REQUEST_ERROR: string = "BAD REQUEST: TOPIC DOES NOT EXIST";
+export const PUBLISHER_CACHE_EXPIRED: string = "ZMQ_PUBLISHER ERROR: MESSAGE NOT IN CACHE";
 
 export enum EMessageType
 {
@@ -26,6 +26,11 @@ export enum EPublishMessage
 export type TRecoveryRequest = [string, ...number[]];
 export type TRecoveryResponse = string[][];
 
+export type TZMQPublisherErrorHandlers =
+{
+    CacheError: (aError: TCacheError) => void;
+};
+
 type TTopicDetails =
 {
     LatestMessageNonce: number;
@@ -36,7 +41,8 @@ type TPublishRequest = string[];
 export class ZMQPublisher
 {
     private readonly mMessageCaches: Map<string, ExpiryMap<number, string[]>> = new Map();
-    private readonly mEndpoint: string;
+    private readonly mEndpoint: TSubscriptionEndpoints;
+    private readonly mErrorHandlers: TZMQPublisherErrorHandlers;
     private readonly mPublishQueue: Queue<TPublishRequest> = new Queue();
     private readonly mTopicDetails: Map<string, TTopicDetails> = new Map();
     private mHeartbeatTimeout: NodeJS.Timeout | undefined;
@@ -44,9 +50,10 @@ export class ZMQPublisher
     private mResponse: ZMQResponse;
     private mSafeToPublish: boolean = true;
 
-    public constructor(aEndpoint: TSubscriptionEndpoints)
+    public constructor(aEndpoint: TSubscriptionEndpoints, aErrorHandlers: TZMQPublisherErrorHandlers)
     {
-        this.mEndpoint = aEndpoint.PublisherAddress;
+        this.mEndpoint = aEndpoint;
+        this.mErrorHandlers = aErrorHandlers;
 
         this.mResponse = new ZMQResponse(aEndpoint.RequestAddress, this.HandleRequest);
     }
@@ -88,15 +95,20 @@ export class ZMQPublisher
             for (let i: number = 0; i < lDecodedRequest.length; ++i)
             {
                 const lMessageId: number = lDecodedRequest[i];
-                const lMessage: string[] =
-                        this.mMessageCaches.get(lTopic)!.get(lMessageId)
-                    ||  [CACHE_ERROR];
-                lRequestedMessages.push(lMessage);
+                const lMessage: string[] | undefined = this.mMessageCaches.get(lTopic)!.get(lMessageId);
+                lRequestedMessages.push(lMessage || [PUBLISHER_CACHE_EXPIRED]);
+
+                if (lMessage === undefined)
+                {
+                    this.mErrorHandlers.CacheError(
+                        {
+                            Endpoint: this.mEndpoint,
+                            Topic: lTopic,
+                            MessageId: lMessageId,
+                        },
+                    );
+                }
             }
-        }
-        else
-        {
-            throw new Error(BAD_REQUEST_ERROR);
         }
 
         return Promise.resolve(JSONBigInt.Stringify(lRequestedMessages));
@@ -109,8 +121,8 @@ export class ZMQPublisher
         if (lNextSend && this.mSafeToPublish)
         {
             this.mPublishQueue.dequeue();
-            this.mSafeToPublish = false;
 
+            this.mSafeToPublish = false;
             await this.mPublisher.send(lNextSend);
             this.mSafeToPublish = true;
 
@@ -126,7 +138,7 @@ export class ZMQPublisher
 
     public get Endpoint(): string
     {
-        return this.mEndpoint;
+        return this.mEndpoint.PublisherAddress;
     }
 
     public async Publish(aTopic: string, aData: string): Promise<void>
@@ -157,7 +169,7 @@ export class ZMQPublisher
             aData,
         ];
         lCache.set(lMessageNonce, lMessage);
-        lTopicDetails.LatestMessageTimestamp = Date.now();
+        lTopicDetails.LatestMessageTimestamp = Date.now();  // TODO: Set LatestMessageTimestamp to time of send?
 
         await this.QueuePublish(lMessage);
     }
@@ -165,7 +177,7 @@ export class ZMQPublisher
     public async Start(): Promise<void>
     {
         this.mPublisher = new zmq.Publisher;
-        await this.mPublisher.bind(this.mEndpoint);
+        await this.mPublisher.bind(this.mEndpoint.PublisherAddress);
 
         await this.mResponse.Start();
         this.CheckHeartbeats();
