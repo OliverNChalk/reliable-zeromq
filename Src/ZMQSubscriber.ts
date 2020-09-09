@@ -87,16 +87,11 @@ export class ZMQSubscriber
 
             if (lType === EMessageType.HEARTBEAT)
             {
-                this.ProcessNonce(aEndpoint, lTopic, lNonce, true);
+                this.ProcessHeartbeatMessage(aEndpoint, lTopic, lNonce);
             }
             else
             {
-                // Process message nonce and call callback if not duplicate
-                if (this.ProcessNonce(aEndpoint, lTopic, lNonce))
-                {
-                    // Forwards messages to their relevant subscriber
-                    this.CallSubscribers(aEndpoint, lTopic, lMessage);
-                }
+                this.ProcessPublishMessage(aEndpoint, lTopic, lNonce, lMessage);
             }
         }
     }
@@ -122,30 +117,56 @@ export class ZMQSubscriber
         );
     }
 
-    private ProcessNonce(
+    private ProcessHeartbeatMessage(
         aEndpoint: TSubscriptionEndpoints,
         aTopic: string,
-        aNonce: number,
-        aHeartbeat: boolean = false,    // TODO: Refactor to remove this boolean
-    ): boolean
+        aHeartbeatNonce: number,
+    ): void
     {
         const lEndpoint: TEndpointEntry = this.mEndpoints.get(aEndpoint.PublisherAddress)!;
         const lTopicEntry: TTopicEntry = this.mEndpoints.get(aEndpoint.PublisherAddress)!.TopicEntries.get(aTopic)!;
+
         const lLastSeenNonce: number = lTopicEntry.Nonce;
-        const lExpectedNonce: number = aHeartbeat ? lLastSeenNonce : lLastSeenNonce + 1;
-        let lCallCallback: boolean = true;
 
         // TODO: Refactor into collection of smaller methods
-        if (aNonce === lExpectedNonce)
+        if (aHeartbeatNonce > lLastSeenNonce)
         {
-            lTopicEntry.Nonce = aNonce;
-        }
-        else if (aNonce > lExpectedNonce)
-        {
-            let lStart: number = lExpectedNonce === 0 ? 1 : lExpectedNonce; // No message zero in this protocol
-            aHeartbeat && lStart > 1 ? lStart++ : lStart; // Have to increment by what we subtracted, will address this in future refactor
+            const lFirstMissingId: number = lLastSeenNonce + 1;
+            const lLastMissingId: number = aHeartbeatNonce;
 
-            const lEnd: number = aHeartbeat ? aNonce : aNonce - 1;
+            const lMissingNonces: number[] = [];
+            for (let i: number = lFirstMissingId; i <= lLastMissingId; ++i)
+            {
+                lMissingNonces.push(i);
+            }
+
+            this.RecoverMissingMessages(aEndpoint, aTopic, lEndpoint, lMissingNonces);
+            lTopicEntry.Nonce = aHeartbeatNonce;
+        }
+    }
+
+    private ProcessPublishMessage(
+        aEndpoint: TSubscriptionEndpoints,
+        aTopic: string,
+        aReceivedNonce: number,
+        aReceivedMessage: string,
+    ): void
+    {
+        // TODO: Refactor into class for nonce management and message recovery
+        const lEndpoint: TEndpointEntry = this.mEndpoints.get(aEndpoint.PublisherAddress)!;
+        const lTopicEntry: TTopicEntry = this.mEndpoints.get(aEndpoint.PublisherAddress)!.TopicEntries.get(aTopic)!;
+
+        const lLastSeenNonce: number = lTopicEntry.Nonce;
+
+        if (aReceivedNonce === lLastSeenNonce + 1)
+        {
+            lTopicEntry.Nonce = aReceivedNonce;
+            this.CallSubscribers(aEndpoint, aTopic, aReceivedMessage);
+        }
+        else if (aReceivedNonce > lLastSeenNonce + 1)
+        {
+            const lStart: number = lLastSeenNonce + 1;
+            const lEnd: number = aReceivedNonce - 1;
 
             const lMissingNonces: number[] = [];
             for (let i: number = lStart; i <= lEnd; ++i)
@@ -154,14 +175,10 @@ export class ZMQSubscriber
             }
 
             this.RecoverMissingMessages(aEndpoint, aTopic, lEndpoint, lMissingNonces);
-            lTopicEntry.Nonce = aNonce;
-        }
-        else
-        {
-            lCallCallback = false;
-        }
 
-        return lCallCallback;
+            lTopicEntry.Nonce = aReceivedNonce;
+            this.CallSubscribers(aEndpoint, aTopic, aReceivedMessage);
+        }
     }
 
     private PruneTopicIfEmpty(
