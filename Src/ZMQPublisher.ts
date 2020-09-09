@@ -15,8 +15,8 @@ export enum EMessageType
     PUBLISH = "PUBLISH",
 }
 
-export type TPublisherMessage = [string, EMessageType, number, string];
-export enum EPublishMessage
+export type TPublisherMessage = [topic: string, type: EMessageType, nonce: number, message: string] | [error: string];
+export enum EPublishMessage // TODO: Remove when webstorm adds named tuple support
 {
     Topic,
     MessageType,
@@ -24,7 +24,7 @@ export enum EPublishMessage
     Message,
 }
 export type TRecoveryRequest = [string, ...number[]];
-export type TRecoveryResponse = string[][];
+export type TRecoveryResponse = TPublisherMessage[];
 
 export type TZMQPublisherErrorHandlers =
 {
@@ -189,7 +189,7 @@ export class ZMQPublisher
 
         this.mPublisher.linger = 0;
         this.mPublisher.close();
-        delete(this.mPublisher);
+        this.mPublisher = undefined!;   // TODO: This ugly code will be vanquished once we change Stop to Close
         clearTimeout(this.mHeartbeatTimeout!);
     }
 }

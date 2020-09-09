@@ -10,10 +10,11 @@ type TResolve = (aResult: TRequestResponse) => void;
 
 type TSendRequest =
 {
-    Request: string[];
+    Request: TRequestBody;
     Resolve: () => void;
 };
 
+type TRequestBody = [requesterId: string, nonce: string, message: string];
 export enum ERequestBody
 {
     RequesterId,
@@ -67,7 +68,7 @@ export class ZMQRequest
         }
     }
 
-    private async ManageRequest(aRequestId: number, aRequest: string[]): Promise<void>
+    private async ManageRequest(aRequestId: number, aRequest: TRequestBody): Promise<void>
     {
         const lMaximumSendTime: number = Date.now() + this.mRoundTripMax;
         await Delay(RESPONSE_TIMEOUT);
@@ -110,7 +111,7 @@ export class ZMQRequest
         }
     }
 
-    private SendMessage(aRequest: string[]): Promise<void>
+    private SendMessage(aRequest: TRequestBody): Promise<void>
     {
         let lResolver: () => void;
 
@@ -141,7 +142,7 @@ export class ZMQRequest
 
         const lRequestId: number = this.mRequestNonce++;
 
-        const lRequest: string[] =
+        const lRequest: TRequestBody =
         [
             this.mOurUniqueId,
             lRequestId.toString(),
@@ -168,6 +169,6 @@ export class ZMQRequest
     {
         this.mDealer.linger = 0;
         this.mDealer.close();
-        delete (this.mDealer);
+        this.mDealer = undefined!;
     }
 }

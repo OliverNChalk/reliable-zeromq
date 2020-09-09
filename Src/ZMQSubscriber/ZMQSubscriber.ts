@@ -4,7 +4,6 @@ import JSONBigInt from "../Utils/JSONBigInt";
 import {
     EMessageType,
     EPublishMessage,
-    PUBLISHER_CACHE_EXPIRED,
     TPublisherMessage,
     TRecoveryRequest,
     TRecoveryResponse,
@@ -163,8 +162,8 @@ export class ZMQSubscriber
 
             for (let i: number = 0; i < lParsedMessages.length; ++i)
             {
-                const lParsedMessage: string[] = lParsedMessages[i];
-                if (lParsedMessage[0] === PUBLISHER_CACHE_EXPIRED)
+                const lParsedMessage: TPublisherMessage = lParsedMessages[i];
+                if (lParsedMessage.length === 1)
                 {
                     this.EmitCacheError(aEndpoint, aTopic, aMessageIds[i]);
                 }

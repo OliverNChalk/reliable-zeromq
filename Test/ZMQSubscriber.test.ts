@@ -369,17 +369,17 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
 
     const lStatusResponse: TRecoveryResponse =
     [
-        ["TopicToTest", EMessageType.PUBLISH, "1", "Hello1"],
-        ["TopicToTest", EMessageType.PUBLISH, "2", "Hello2"],
-        ["TopicToTest", EMessageType.PUBLISH, "3", "Hello3"],
+        ["TopicToTest", EMessageType.PUBLISH, 1, "Hello1"],
+        ["TopicToTest", EMessageType.PUBLISH, 2, "Hello2"],
+        ["TopicToTest", EMessageType.PUBLISH, 3, "Hello3"],
     ];
     const lWeatherResponse: TRecoveryResponse =
     [
-        ["Sydney", EMessageType.PUBLISH, "1", "Rainy"],
-        ["Sydney", EMessageType.PUBLISH, "2", "Misty"],
-        ["Sydney", EMessageType.PUBLISH, "3", "Cloudy"],
-        ["Sydney", EMessageType.PUBLISH, "4", "Sunny"],
-        [PUBLISHER_CACHE_EXPIRED],
+        ["Sydney", EMessageType.PUBLISH, 1, "Rainy"],
+        ["Sydney", EMessageType.PUBLISH, 2, "Misty"],
+        ["Sydney", EMessageType.PUBLISH, 3, "Cloudy"],
+        ["Sydney", EMessageType.PUBLISH, 4, "Sunny"],
+        [PUBLISHER_CACHE_EXPIRED] as any,
     ];
     lSendMock
         .onCall(0).returns(Promise.resolve(JSONBigInt.Stringify(lStatusResponse)))

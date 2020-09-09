@@ -65,6 +65,6 @@ export class ZMQResponse
     {
         this.mRouter.linger = 0;
         this.mRouter.close();
-        delete(this.mRouter);
+        this.mRouter = undefined!;
     }
 }
