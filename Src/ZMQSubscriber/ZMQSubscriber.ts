@@ -1,6 +1,6 @@
 import * as zmq from "zeromq";
-import { TCacheError } from "./Errors";
-import JSONBigInt from "./Utils/JSONBigInt";
+import { TCacheError } from "../Errors";
+import JSONBigInt from "../Utils/JSONBigInt";
 import {
     EMessageType,
     EPublishMessage,
@@ -8,22 +8,17 @@ import {
     TPublisherMessage,
     TRecoveryRequest,
     TRecoveryResponse,
-} from "./ZMQPublisher";
-import { TRequestResponse, ZMQRequest } from "./ZMQRequest";
+} from "../ZMQPublisher";
+import { TRequestResponse, ZMQRequest } from "../ZMQRequest";
+import TopicEntry from "./TopicEntry";
 
 export type SubscriptionCallback = (aMessage: string) => void;
 
-type TTopicEntry =
-{
-    Nonce: number;
-    Callbacks: Map<number, SubscriptionCallback>;
-};
-
-type TEndpointEntry =
+export type TEndpointEntry =
 {
     Subscriber: zmq.Subscriber;
     Requester: ZMQRequest;
-    TopicEntries: Map<string, TTopicEntry>;
+    TopicEntries: Map<string, TopicEntry>;
 };
 
 type TInternalSubscription =
@@ -62,37 +57,21 @@ export class ZMQSubscriber
 
     private async AddSubscriptionEndpoint(aEndpoint: TSubscriptionEndpoints): Promise<void>
     {
-        // TODO: Refactor this monster method into collection of smaller methods
         const lSubSocket: zmq.Subscriber = new zmq.Subscriber;
         lSubSocket.connect(aEndpoint.PublisherAddress);
 
         const lSocketEntry: TEndpointEntry = {
             Subscriber: lSubSocket,
             Requester: new ZMQRequest(aEndpoint.RequestAddress),
-            TopicEntries: new Map<string, TTopicEntry>(),
+            TopicEntries: new Map<string, TopicEntry>(),
         };
+
         lSocketEntry.Requester.Start();
         this.mEndpoints.set(aEndpoint.PublisherAddress, lSocketEntry);
 
-        for await (const buffers of lSubSocket)
+        for await (const aBuffers of lSubSocket)
         {
-            const lEncodedMessage: string[] = buffers.map((value: Buffer): string => value.toString());
-            const [lTopic, lType, lNonce, lMessage]: TPublisherMessage =
-            [
-                lEncodedMessage[0],
-                lEncodedMessage[1] as EMessageType,
-                Number(lEncodedMessage[2]),
-                lEncodedMessage[3],
-            ];
-
-            if (lType === EMessageType.HEARTBEAT)
-            {
-                this.ProcessHeartbeatMessage(aEndpoint, lTopic, lNonce);
-            }
-            else
-            {
-                this.ProcessPublishMessage(aEndpoint, lTopic, lNonce, lMessage);
-            }
+            this.ParseNewMessage(aBuffers, aEndpoint);
         }
     }
 
@@ -117,72 +96,43 @@ export class ZMQSubscriber
         );
     }
 
-    private ProcessHeartbeatMessage(
+    private InitTopicEntry(
         aEndpoint: TSubscriptionEndpoints,
-        aTopic: string,
-        aHeartbeatNonce: number,
-    ): void
+        lSubscriptionId: number,
+        aCallback: (aMessage: string) => void,
+    ): TopicEntry
     {
-        const lEndpoint: TEndpointEntry = this.mEndpoints.get(aEndpoint.PublisherAddress)!;
-        const lTopicEntry: TTopicEntry = this.mEndpoints.get(aEndpoint.PublisherAddress)!.TopicEntries.get(aTopic)!;
+        const lTopicEntry: TopicEntry = new TopicEntry(aEndpoint, this.RecoverMissingMessages.bind(this));
+        lTopicEntry.Callbacks.set(lSubscriptionId, aCallback);
 
-        const lLastSeenNonce: number = lTopicEntry.Nonce;
-
-        // TODO: Refactor into collection of smaller methods
-        if (aHeartbeatNonce > lLastSeenNonce)
-        {
-            const lFirstMissingId: number = lLastSeenNonce + 1;
-            const lLastMissingId: number = aHeartbeatNonce;
-
-            const lMissingNonces: number[] = [];
-            for (let i: number = lFirstMissingId; i <= lLastMissingId; ++i)
-            {
-                lMissingNonces.push(i);
-            }
-
-            this.RecoverMissingMessages(aEndpoint, aTopic, lEndpoint, lMissingNonces);
-            lTopicEntry.Nonce = aHeartbeatNonce;
-        }
+        return lTopicEntry;
     }
 
-    private ProcessPublishMessage(
-        aEndpoint: TSubscriptionEndpoints,
-        aTopic: string,
-        aReceivedNonce: number,
-        aReceivedMessage: string,
-    ): void
+    private ParseNewMessage(aBuffers: Buffer[], aEndpoint: TSubscriptionEndpoints): void
     {
-        // TODO: Refactor into class for nonce management and message recovery
-        const lEndpoint: TEndpointEntry = this.mEndpoints.get(aEndpoint.PublisherAddress)!;
-        const lTopicEntry: TTopicEntry = this.mEndpoints.get(aEndpoint.PublisherAddress)!.TopicEntries.get(aTopic)!;
+        const lEncodedMessage: string[] = aBuffers.map((aBuffer: Buffer): string => aBuffer.toString());
+        const [lTopic, lType, lReceivedNonce, lMessage]: TPublisherMessage =
+            [
+                lEncodedMessage[0],
+                lEncodedMessage[1] as EMessageType,
+                Number(lEncodedMessage[2]),
+                lEncodedMessage[3],
+            ];
 
-        const lLastSeenNonce: number = lTopicEntry.Nonce;
-
-        if (aReceivedNonce === lLastSeenNonce + 1)
+        const lTopicEntry: TopicEntry = this.mEndpoints.get(aEndpoint.PublisherAddress)!.TopicEntries.get(lTopic)!;
+        if (lType === EMessageType.HEARTBEAT)
         {
-            lTopicEntry.Nonce = aReceivedNonce;
-            this.CallSubscribers(aEndpoint, aTopic, aReceivedMessage);
+            lTopicEntry.ProcessHeartbeatMessage(aEndpoint, lTopic, lReceivedNonce);
         }
-        else if (aReceivedNonce > lLastSeenNonce + 1)
+        else if (lType === EMessageType.PUBLISH && lReceivedNonce > lTopicEntry.Nonce)
         {
-            const lStart: number = lLastSeenNonce + 1;
-            const lEnd: number = aReceivedNonce - 1;
-
-            const lMissingNonces: number[] = [];
-            for (let i: number = lStart; i <= lEnd; ++i)
-            {
-                lMissingNonces.push(i);
-            }
-
-            this.RecoverMissingMessages(aEndpoint, aTopic, lEndpoint, lMissingNonces);
-
-            lTopicEntry.Nonce = aReceivedNonce;
-            this.CallSubscribers(aEndpoint, aTopic, aReceivedMessage);
+            lTopicEntry.ProcessPublishMessage(aEndpoint, lTopic, lReceivedNonce);
+            this.CallSubscribers(aEndpoint, lTopic, lMessage);
         }
     }
 
     private PruneTopicIfEmpty(
-        lTopicEntry: TTopicEntry,
+        lTopicEntry: TopicEntry,
         lEndpoint: TEndpointEntry,
         lInternalSubscription: TInternalSubscription,
     ): void
@@ -197,15 +147,15 @@ export class ZMQSubscriber
     private async RecoverMissingMessages(
         aEndpoint: TSubscriptionEndpoints,
         aTopic: string,
-        aEndpointEntry: TEndpointEntry,
         aMessageIds: number[],
     ): Promise<void>
     {
         // TODO: Check for possibility that a messages gets played twice, I think I handled this via nonce...
         const lFormattedRequest: TRecoveryRequest = [aTopic, ...aMessageIds];   // PERF: Array manipulation
 
+        const lEndpointEntry: TEndpointEntry = this.mEndpoints.get(aEndpoint.PublisherAddress)!;
         const lMissingMessages: TRequestResponse
-            = await aEndpointEntry.Requester.Send(JSONBigInt.Stringify(lFormattedRequest));
+            = await lEndpointEntry.Requester.Send(JSONBigInt.Stringify(lFormattedRequest));
 
         if (typeof lMissingMessages === "string")
         {
@@ -255,21 +205,17 @@ export class ZMQSubscriber
         }
 
         const lSubscriptionId: number = this.SubscriptionId;
-        const lExistingTopic: TTopicEntry | undefined = lEndpoint.TopicEntries.get(aTopic);
+        const lExistingTopic: TopicEntry | undefined = lEndpoint.TopicEntries.get(aTopic);
         if (lExistingTopic)
         {
             lExistingTopic.Callbacks.set(lSubscriptionId, aCallback);
         }
         else
         {
+            const lTopicEntry: TopicEntry = this.InitTopicEntry(aEndpoint, lSubscriptionId, aCallback);
+
             lEndpoint.Subscriber.subscribe(aTopic);
-            lEndpoint.TopicEntries.set(
-                aTopic,
-                {
-                    Nonce: 0,
-                    Callbacks: new Map([[lSubscriptionId, aCallback]]), // Initialize map with new callback and callback id
-                },
-            );
+            lEndpoint.TopicEntries.set(aTopic, lTopicEntry);
         }
 
         this.mSubscriptions.set(lSubscriptionId, { Endpoint: aEndpoint.PublisherAddress, Topic: aTopic });
@@ -284,7 +230,7 @@ export class ZMQSubscriber
         if (lInternalSubscription)
         {
             const lEndpoint: TEndpointEntry = this.mEndpoints.get(lInternalSubscription.Endpoint)!;
-            const lTopicEntry: TTopicEntry = lEndpoint.TopicEntries.get(lInternalSubscription.Topic)!;
+            const lTopicEntry: TopicEntry = lEndpoint.TopicEntries.get(lInternalSubscription.Topic)!;
 
             lTopicEntry.Callbacks.delete(aSubscriptionId);
             this.mSubscriptions.delete(aSubscriptionId);

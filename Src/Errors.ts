@@ -1,4 +1,4 @@
-import { TSubscriptionEndpoints } from "./ZMQSubscriber";
+import { TSubscriptionEndpoints } from "./ZMQSubscriber/ZMQSubscriber";
 
 export type TCacheError =
 {

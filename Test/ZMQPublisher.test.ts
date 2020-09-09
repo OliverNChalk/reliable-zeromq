@@ -9,7 +9,7 @@ import { TCacheError } from "../Src/Errors";
 import JSONBigInt from "../Src/Utils/JSONBigInt";
 import { EMessageType, PUBLISHER_CACHE_EXPIRED, ZMQPublisher } from "../Src/ZMQPublisher";
 import * as ZMQResponse from "../Src/ZMQResponse";
-import { TSubscriptionEndpoints } from "../Src/ZMQSubscriber";
+import { TSubscriptionEndpoints } from "../Src/ZMQSubscriber/ZMQSubscriber";
 import { YieldToEventLoop } from "./Helpers/AsyncTools";
 import { DUMMY_ENDPOINTS } from "./Helpers/DummyEndpoints.data";
 

@@ -8,7 +8,7 @@ import JSONBigInt from "../../Src/Utils/JSONBigInt";
 import { ZMQPublisher } from "../../Src/ZMQPublisher";
 import { TRequestResponse, ZMQRequest } from "../../Src/ZMQRequest";
 import { ZMQResponse } from "../../Src/ZMQResponse";
-import { TSubscriptionEndpoints, ZMQSubscriber } from "../../Src/ZMQSubscriber";
+import { TSubscriptionEndpoints, ZMQSubscriber } from "../../Src/ZMQSubscriber/ZMQSubscriber";
 import { DUMMY_ENDPOINTS } from "../Helpers/DummyEndpoints.data";
 
 type TTestContext =

@@ -5,7 +5,7 @@ import { TCacheError } from "./Errors";
 import ExpiryMap from "./Utils/ExpiryMap";
 import JSONBigInt from "./Utils/JSONBigInt";
 import { ZMQResponse } from "./ZMQResponse";
-import { TSubscriptionEndpoints } from "./ZMQSubscriber";
+import { TSubscriptionEndpoints } from "./ZMQSubscriber/ZMQSubscriber";
 
 export const PUBLISHER_CACHE_EXPIRED: string = "ZMQ_PUBLISHER ERROR: MESSAGE NOT IN CACHE";
 
