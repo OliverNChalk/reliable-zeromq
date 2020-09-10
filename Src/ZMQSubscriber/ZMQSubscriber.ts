@@ -4,7 +4,8 @@ import JSONBigInt from "../Utils/JSONBigInt";
 import {
     EMessageType,
     EPublishMessage,
-    TPublisherMessage,
+    TPublishMessage,
+    TRecoveryMessage,
     TRecoveryRequest,
     TRecoveryResponse,
 } from "../ZMQPublisher";
@@ -122,13 +123,13 @@ export class ZMQSubscriber
     private ParseNewMessage(aBuffers: Buffer[], aEndpoint: TSubscriptionEndpoints): void
     {
         const lEncodedMessage: string[] = aBuffers.map((aBuffer: Buffer): string => aBuffer.toString());
-        const [lTopic, lType, lReceivedNonce, lMessage]: TPublisherMessage =
-            [
-                lEncodedMessage[0],
-                lEncodedMessage[1] as EMessageType,
-                Number(lEncodedMessage[2]),
-                lEncodedMessage[3],
-            ];
+        const [lTopic, lType, lReceivedNonce, lMessage]: TPublishMessage =
+        [
+            lEncodedMessage[EPublishMessage.Topic],
+            lEncodedMessage[EPublishMessage.MessageType] as EMessageType,
+            Number(lEncodedMessage[EPublishMessage.Nonce]),
+            lEncodedMessage[EPublishMessage.Message],
+        ];
 
         const lTopicEntry: TopicEntry = this.mEndpoints.get(aEndpoint.PublisherAddress)!.TopicEntries.get(lTopic)!;
         if (lType === EMessageType.HEARTBEAT)
@@ -161,7 +162,7 @@ export class ZMQSubscriber
 
             for (let i: number = 0; i < lParsedMessages.length; ++i)
             {
-                const lParsedMessage: TPublisherMessage = lParsedMessages[i];
+                const lParsedMessage: TRecoveryMessage = lParsedMessages[i];
                 if (lParsedMessage.length === 1)
                 {
                     this.EmitCacheError(aEndpoint, aTopic, aMessageIds[i]);

@@ -5,7 +5,7 @@ import * as sinon from "sinon";
 import { ImportMock } from "ts-mock-imports";
 import { Delay } from "../../Src/Utils/Delay";
 import JSONBigInt from "../../Src/Utils/JSONBigInt";
-import { ZMQPublisher } from "../../Src/ZMQPublisher";
+import { EPublishMessage, TPublishMessage, ZMQPublisher } from "../../Src/ZMQPublisher";
 import { TRequestResponse, ZMQRequest } from "../../Src/ZMQRequest";
 import { ZMQResponse } from "../../Src/ZMQResponse";
 import { TSubscriptionEndpoints, ZMQSubscriber } from "../../Src/ZMQSubscriber/ZMQSubscriber";
@@ -201,9 +201,9 @@ test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestConte
         lSubscriber.Subscribe(aEndpoint, aTopic, (aMsg: string): void =>
         {
             lTestDataResult[aEndpoint.PublisherAddress].Publisher["mMessageCaches"].get(aTopic)!.forEach(
-            (aValue: string[], aKey: number): void =>
+            (aValue: TPublishMessage, aKey: number): void =>
             {
-                if (aValue[3] === aMsg)
+                if (aValue[EPublishMessage.Message] === aMsg)
                 {
                     lSaveResult(aEndpoint.PublisherAddress, aTopic, aKey, aMsg);
                 }

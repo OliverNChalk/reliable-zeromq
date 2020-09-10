@@ -15,16 +15,19 @@ export enum EMessageType
     PUBLISH = "PUBLISH",
 }
 
-export type TPublisherMessage = [topic: string, type: EMessageType, nonce: number, message: string] | [error: string];
-export enum EPublishMessage // TODO: Remove when webstorm adds named tuple support
+export enum EPublishMessage
 {
     Topic,
     MessageType,
     Nonce,
     Message,
 }
+export type TPublishMessage = [topic: string, type: EMessageType, nonce: number, message: string];
+
+type TRecoveryFailure = [error: string];
+export type TRecoveryMessage = TPublishMessage | TRecoveryFailure;
 export type TRecoveryRequest = [string, ...number[]];
-export type TRecoveryResponse = TPublisherMessage[];
+export type TRecoveryResponse = TRecoveryMessage[];
 
 export type TZMQPublisherErrorHandlers =
 {
@@ -36,14 +39,13 @@ type TTopicDetails =
     LatestMessageNonce: number;
     LatestMessageTimestamp: number;
 };
-type TPublishRequest = string[];
 
 export class ZMQPublisher
 {
     private readonly mEndpoint: TSubscriptionEndpoints;
     private readonly mErrorHandlers: TZMQPublisherErrorHandlers;
-    private readonly mMessageCaches: Map<string, ExpiryMap<number, string[]>> = new Map();
-    private readonly mPublishQueue: Queue<TPublishRequest> = new Queue();
+    private readonly mMessageCaches: Map<string, ExpiryMap<number, TPublishMessage>> = new Map();
+    private readonly mPublishQueue: Queue<TPublishMessage> = new Queue();
     private readonly mTopicDetails: Map<string, TTopicDetails> = new Map();
     private mHeartbeatTimeout: NodeJS.Timeout | undefined;
     private mPublisher!: zmq.Publisher;
@@ -65,15 +67,15 @@ export class ZMQPublisher
 
     private async CheckHeartbeats(): Promise<void>
     {
-        this.mTopicDetails.forEach(async(aValue: TTopicDetails, aKey: string): Promise<void> =>
+        this.mTopicDetails.forEach(async(aValue: TTopicDetails, aTopicKey: string): Promise<void> =>
         {
             if (aValue.LatestMessageTimestamp + Config.HeartBeatInterval <= Date.now())
             {
-                await this.QueuePublish(
+                this.QueuePublish(
                     [
-                        aKey,
+                        aTopicKey,
                         EMessageType.HEARTBEAT,
-                        aValue.LatestMessageNonce.toString(),
+                        aValue.LatestMessageNonce,
                         "",
                     ],
                 );
@@ -91,16 +93,16 @@ export class ZMQPublisher
         const lDecodedRequest: number[] = [];
         for (let i: number = 1; i < lRequest.length; ++i)
         {
-            lDecodedRequest.push(Number(lRequest[i]));
+            lDecodedRequest.push(Number(lRequest[i]));  // TODO: Check if the `Number()` wrapper is necessary?
         }
 
-        const lRequestedMessages: string[][] = [];
+        const lRequestedMessages: TRecoveryMessage[] = [];
         if (this.mMessageCaches.has(lTopic))
         {
             for (let i: number = 0; i < lDecodedRequest.length; ++i)
             {
                 const lMessageId: number = lDecodedRequest[i];
-                const lMessage: string[] | undefined = this.mMessageCaches.get(lTopic)!.get(lMessageId);
+                const lMessage: TPublishMessage | undefined = this.mMessageCaches.get(lTopic)!.get(lMessageId);
                 lRequestedMessages.push(lMessage || [PUBLISHER_CACHE_EXPIRED]);
 
                 if (lMessage === undefined)
@@ -121,21 +123,23 @@ export class ZMQPublisher
 
     private async ProcessPublish(): Promise<void>
     {
-        const lNextSend: TPublishRequest | undefined = this.mPublishQueue.peek();
+        const lNextSend: TPublishMessage | undefined = this.mPublishQueue.peek();
 
         if (lNextSend && this.mSafeToPublish)
         {
-            this.mPublishQueue.dequeue();
+            const lFormattedMessage: string[] = lNextSend as string[];  // We replace the number with a string on the next line
+            lFormattedMessage[EPublishMessage.Nonce] = lFormattedMessage[EPublishMessage.Nonce].toString();
 
+            this.mPublishQueue.dequeue();
             this.mSafeToPublish = false;
-            await this.mPublisher.send(lNextSend);
+            await this.mPublisher.send(lFormattedMessage);
             this.mSafeToPublish = true;
 
             this.ProcessPublish();
         }
     }
 
-    private QueuePublish(aMessage: string[]): void
+    private QueuePublish(aMessage: TPublishMessage): void
     {
         this.mPublishQueue.enqueue(aMessage);
         this.ProcessPublish();
@@ -162,7 +166,7 @@ export class ZMQPublisher
 
     public async Publish(aTopic: string, aData: string): Promise<void>
     {
-        let lCache: ExpiryMap<number, string[]> | undefined = this.mMessageCaches.get(aTopic);
+        let lCache: ExpiryMap<number, TPublishMessage> | undefined = this.mMessageCaches.get(aTopic);
         if (!lCache)
         {
             lCache = new ExpiryMap(3 * Config.MaximumLatency);
@@ -181,10 +185,11 @@ export class ZMQPublisher
         }
 
         const lMessageNonce: number = ++lTopicDetails.LatestMessageNonce;
-        const lMessage: string[] = [
+        const lMessage: TPublishMessage =
+        [
             aTopic,
             EMessageType.PUBLISH,
-            lMessageNonce.toString(),
+            lMessageNonce,
             aData,
         ];
         lCache.set(lMessageNonce, lMessage);

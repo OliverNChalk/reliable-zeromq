@@ -7,7 +7,7 @@ import * as zmq from "zeromq";
 import Config from "../Src/Config";
 import { TCacheError } from "../Src/Errors";
 import JSONBigInt from "../Src/Utils/JSONBigInt";
-import { EMessageType, PUBLISHER_CACHE_EXPIRED, ZMQPublisher } from "../Src/ZMQPublisher";
+import { EMessageType, EPublishMessage, PUBLISHER_CACHE_EXPIRED, ZMQPublisher } from "../Src/ZMQPublisher";
 import * as ZMQResponse from "../Src/ZMQResponse";
 import { TSubscriptionEndpoints } from "../Src/ZMQSubscriber/ZMQSubscriber";
 import { YieldToEventLoop } from "./Helpers/AsyncTools";
@@ -138,8 +138,8 @@ test.serial("Start, Publish, Respond, Close", async(t: ExecutionContext<TTestCon
 
     for (let i: number = 0; i < 5; ++i)
     {
-        t.is(lSendMock.getCall(i + 2).args[0][0], lTestData[i][0]);
-        t.is(lSendMock.getCall(i + 2).args[0][3], lTestData[i][1]);
+        t.is(lSendMock.getCall(i + 2).args[0][EPublishMessage.Topic], lTestData[i][0]);
+        t.is(lSendMock.getCall(i + 2).args[0][EPublishMessage.Message], lTestData[i][1]);
     }
 
     const lSecondRecoveryRequest: [string, ...number[]] =

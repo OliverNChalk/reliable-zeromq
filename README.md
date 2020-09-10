@@ -3,11 +3,11 @@
 [![codecov](https://codecov.io/gh/OliverNChalk/reliable-zeromq/branch/master/graph/badge.svg)](https://codecov.io/gh/OliverNChalk/reliable-zeromq)
 
 ### TODO:
- - Publisher: Stop Protocol (Heartbeating stops)
  - Register ErrorHandler for HWM
  - Performance Testing
  - Migrate to ESLint
  - Test multiple subscribers to one publisher (networked)
+ - Separate Ack + Response in ZMQResponse to distinguish between slow peers and slow endpoints?
  
 ### Ideas:
  - Mock zmq functionality
