@@ -44,14 +44,14 @@ export class ZMQSubscriber
     private mSubscriptions: Map<number, TInternalSubscription> = new Map();
     private mTokenId: number = 0;
 
-    private get SubscriptionId(): number
-    {
-        return ++this.mTokenId;
-    }
-
     public constructor(aErrorHandlers: TZMQSubscriberErrorHandlers)
     {
         this.mErrorHandlers = aErrorHandlers;
+    }
+
+    private get SubscriptionId(): number
+    {
+        return ++this.mTokenId;
     }
 
     private async AddSubscriptionEndpoint(aEndpoint: TSubscriptionEndpoints): Promise<void>
@@ -65,7 +65,7 @@ export class ZMQSubscriber
             TopicEntries: new Map<string, TopicEntry>(),
         };
 
-        lSocketEntry.Requester.Start();
+        lSocketEntry.Requester.Open();
         this.mEndpoints.set(aEndpoint.PublisherAddress, lSocketEntry);
 
         for await (const aBuffers of lSubSocket)
@@ -182,16 +182,17 @@ export class ZMQSubscriber
         }
     }
 
-    public Stop(): void
+    public Close(): void
     {
         this.mEndpoints.forEach((aEndpoint: TEndpointEntry): void =>
         {
             aEndpoint.Subscriber.linger = 0;
             aEndpoint.Subscriber.close();
-            aEndpoint.Requester.Stop();
+            aEndpoint.Requester.Close();
         });
 
         this.mEndpoints.clear();
+        this.mSubscriptions.clear();
     }
 
     public Subscribe(aEndpoint: TSubscriptionEndpoints, aTopic: string, aCallback: SubscriptionCallback): number

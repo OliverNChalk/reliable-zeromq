@@ -202,7 +202,7 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
 
     const lSubscriber: ZMQSubscriber = new ZMQSubscriber({ CacheError: (): void => {} });
 
-    lSubscriber.Stop();
+    lSubscriber.Close();
 
     let lCalled: boolean = false;
     lSubscriber.Subscribe(
@@ -231,7 +231,7 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
     t.true(lCalled);
 
     t.is(lSubscriber["mEndpoints"].size, 1);
-    lSubscriber.Stop();
+    lSubscriber.Close();
     t.is(lSubscriber["mEndpoints"].size, 0);
 
     const lSubscribe = (aEndpoint: TSubscriptionEndpoints, aIndex: number): void =>

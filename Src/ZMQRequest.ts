@@ -131,15 +131,23 @@ export class ZMQRequest
         return lPromise;
     }
 
+    public Close(): void
+    {
+        this.mDealer.linger = 0;
+        this.mDealer.close();
+        this.mDealer = undefined!;
+    }
+
+    public Open(): void
+    {
+        this.mDealer = new zmq.Dealer;
+        this.mDealer.connect(this.mEndpoint);
+        this.ResponseHandler();
+    }
+
     public async Send(aData: string): Promise<TRequestResponse>
     {
         // TODO: Build a way to safely send multiple requests without creating a backlog
-        if (!this.mDealer)
-        {
-            // TODO: Do we really want stop functionality? Probably just Close()
-            throw new Error("Attempted to send while stopped");
-        }
-
         const lRequestId: number = this.mRequestNonce++;
 
         const lRequest: TRequestBody =
@@ -156,19 +164,5 @@ export class ZMQRequest
         {
             this.mPendingRequests.set(lRequestId, aResolve);
         });
-    }
-
-    public Start(): void
-    {
-        this.mDealer = new zmq.Dealer;
-        this.mDealer.connect(this.mEndpoint);
-        this.ResponseHandler();
-    }
-
-    public Stop(): void
-    {
-        this.mDealer.linger = 0;
-        this.mDealer.close();
-        this.mDealer = undefined!;
     }
 }

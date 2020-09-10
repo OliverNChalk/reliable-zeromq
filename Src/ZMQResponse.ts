@@ -4,16 +4,21 @@ import ExpiryMap from "./Utils/ExpiryMap";
 
 export class ZMQResponse
 {
-    private mRouter!: zmq.Router;
+    private readonly mCachedRequests: ExpiryMap<string, string | Promise<string>>;
     private readonly mEndpoint: string;
     private readonly mRequestHandler: (aRequest: string) => Promise<string>;
-    private readonly mCachedRequests: ExpiryMap<string, string | Promise<string>>;
+    private mRouter!: zmq.Router;
 
     public constructor(aReplierEndpoint: string, aReceiver: (aRequest: string) => Promise<string>)
     {
         this.mCachedRequests = new ExpiryMap(3 * Config.MaximumLatency);    // 3 times latency assumption, this is a bit arbitrary
         this.mEndpoint = aReplierEndpoint;
         this.mRequestHandler = aReceiver;
+    }
+
+    public get Endpoint(): string
+    {
+        return this.mEndpoint;
     }
 
     private async ReceiveLoop(): Promise<void>
@@ -48,23 +53,18 @@ export class ZMQResponse
         }
     }
 
-    public get Endpoint(): string
+    public Close(): void
     {
-        return this.mEndpoint;
+        this.mRouter.linger = 0;
+        this.mRouter.close();
+        this.mRouter = undefined!;
     }
 
-    public async Start(): Promise<void>
+    public async Open(): Promise<void>
     {
         this.mRouter = new zmq.Router();
         await this.mRouter.bind(this.mEndpoint);
 
         this.ReceiveLoop();
-    }
-
-    public Stop(): void
-    {
-        this.mRouter.linger = 0;
-        this.mRouter.close();
-        this.mRouter = undefined!;
     }
 }

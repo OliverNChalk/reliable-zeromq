@@ -72,7 +72,7 @@ test.serial("Start, Receive, Repeat", async(t: ExecutionContext<TTestContext>): 
     const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, lResponderRouter);
     const lSendMock: Sinon.SinonStub = t.context.RouterMock.mock("send", Promise.resolve());
 
-    await lResponse.Start();
+    await lResponse.Open();
 
     t.is(lResponse.Endpoint, t.context.ResponderEndpoint);
 
@@ -88,8 +88,8 @@ test.serial("Start, Receive, Repeat", async(t: ExecutionContext<TTestContext>): 
     t.is(lResponse["mCachedRequests"].size, 1);
     t.deepEqual(lSendMock.getCall(0).args[0], ["sender", "0", "world"]);
 
-    lResponse.Stop();
-    await lResponse.Start();
+    lResponse.Close();
+    await lResponse.Open();
 
     lResponder = async(aMsg: string): Promise<string> => aMsg + " response";
     t.context.SendToReceiver([
@@ -125,8 +125,5 @@ test.serial("Start, Receive, Repeat", async(t: ExecutionContext<TTestContext>): 
     t.is(lResponse["mCachedRequests"].size, 2);
     t.deepEqual(lSendMock.getCall(3).args[0], ["sender", "1", "this should not throw response"]);
 
-    lResponse.Stop();
+    lResponse.Close();
 });
-
-test.todo("Multiple Requests Don't Block");
-test.todo("Test error cases after ErrorEmitter added");

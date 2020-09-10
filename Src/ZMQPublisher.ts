@@ -40,9 +40,9 @@ type TPublishRequest = string[];
 
 export class ZMQPublisher
 {
-    private readonly mMessageCaches: Map<string, ExpiryMap<number, string[]>> = new Map();
     private readonly mEndpoint: TSubscriptionEndpoints;
     private readonly mErrorHandlers: TZMQPublisherErrorHandlers;
+    private readonly mMessageCaches: Map<string, ExpiryMap<number, string[]>> = new Map();
     private readonly mPublishQueue: Queue<TPublishRequest> = new Queue();
     private readonly mTopicDetails: Map<string, TTopicDetails> = new Map();
     private mHeartbeatTimeout: NodeJS.Timeout | undefined;
@@ -56,6 +56,11 @@ export class ZMQPublisher
         this.mErrorHandlers = aErrorHandlers;
 
         this.mResponse = new ZMQResponse(aEndpoint.RequestAddress, this.HandleRequest);
+    }
+
+    public get Endpoint(): string
+    {
+        return this.mEndpoint.PublisherAddress;
     }
 
     private CheckHeartbeats = async(): Promise<void> =>
@@ -136,9 +141,23 @@ export class ZMQPublisher
         this.ProcessPublish();
     }
 
-    public get Endpoint(): string
+    public Close(): void
     {
-        return this.mEndpoint.PublisherAddress;
+        this.mResponse.Close();
+        clearTimeout(this.mHeartbeatTimeout!);
+
+        this.mPublisher.linger = 0;
+        this.mPublisher.close();
+        this.mPublisher = undefined!;
+    }
+
+    public async Open(): Promise<void>
+    {
+        this.mPublisher = new zmq.Publisher;
+        await this.mPublisher.bind(this.mEndpoint.PublisherAddress);
+
+        await this.mResponse.Open();
+        this.CheckHeartbeats();
     }
 
     public async Publish(aTopic: string, aData: string): Promise<void>
@@ -172,24 +191,5 @@ export class ZMQPublisher
         lTopicDetails.LatestMessageTimestamp = Date.now();  // TODO: Set LatestMessageTimestamp to time of send?
 
         await this.QueuePublish(lMessage);
-    }
-
-    public async Start(): Promise<void>
-    {
-        this.mPublisher = new zmq.Publisher;
-        await this.mPublisher.bind(this.mEndpoint.PublisherAddress);
-
-        await this.mResponse.Start();
-        this.CheckHeartbeats();
-    }
-
-    public Stop(): void
-    {
-        this.mResponse.Stop();
-
-        this.mPublisher.linger = 0;
-        this.mPublisher.close();
-        this.mPublisher = undefined!;   // TODO: This ugly code will be vanquished once we change Stop to Close
-        clearTimeout(this.mHeartbeatTimeout!);
     }
 }

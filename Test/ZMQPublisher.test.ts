@@ -77,8 +77,8 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
     t.is(lPublisher.Endpoint, DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress);
 
     lZmqPublisher.mock("bind", Promise.resolve());
-    lResponseMock.mock("Start", Promise.resolve());
-    lPublisher.Start();
+    lResponseMock.mock("Open", Promise.resolve());
+    lPublisher.Open();
 
     const lSendMock: Sinon.SinonStub = lZmqPublisher.mock("send", Promise.resolve());
     await lPublisher.Publish("myTopicA", "myFirstMessage");
@@ -124,8 +124,8 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
 
     t.deepEqual(JSONBigInt.Parse(lInvalidRecoveryResponse), []);
 
-    lPublisher.Stop();
-    await lPublisher.Start();
+    lPublisher.Close();
+    await lPublisher.Open();
 
     const lTestData: [string, string][] =
     [
@@ -221,12 +221,12 @@ test.serial("Start, Stop, Start, Publish", async(t: ExecutionContext<TTestContex
         },
     );
 
-    lPublisher.Start();
-    lPublisher.Stop();
+    lPublisher.Open();
+    lPublisher.Close();
 
     lZmqPublisher.mock("bind", Promise.resolve());
-    lResponseMock.mock("Start", Promise.resolve());
-    lPublisher.Start();
+    lResponseMock.mock("Open", Promise.resolve());
+    lPublisher.Open();
 
     const lSendMock: Sinon.SinonStub = lZmqPublisher.mock("send", Promise.resolve());
     await lPublisher.Publish("myTopicA", "myFirstMessage");
@@ -237,7 +237,7 @@ test.serial("Start, Stop, Start, Publish", async(t: ExecutionContext<TTestContex
     t.is(lPublisher["mMessageCaches"].get("myTopicA")!.size, 1);
     t.is(lPublisher["mTopicDetails"].size, 1);
 
-    lPublisher.Stop();
+    lPublisher.Close();
 });
 
 test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
@@ -260,8 +260,8 @@ test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
     );
 
     lZmqPublisher.mock("bind", Promise.resolve());
-    lResponseMock.mock("Start", Promise.resolve());
-    lPublisher.Start();
+    lResponseMock.mock("Open", Promise.resolve());
+    lPublisher.Open();
 
     const lSendMock: Sinon.SinonStub = lZmqPublisher.mock("send", Promise.resolve());
     await lPublisher.Publish("myTopicA", "myFirstMessage");
@@ -339,7 +339,7 @@ test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
         },
     );
 
-    lPublisher.Stop();
+    lPublisher.Close();
 
     // Reset Config
     Config.SetGlobalConfig(5000);

@@ -74,8 +74,8 @@ test.serial("ZMQRequest: Start, Send, Receive, Repeat", async(t: ExecutionContex
     });
     const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
 
-    lRequest.Start();
-    await lResponse.Start();
+    lRequest.Open();
+    await lResponse.Open();
 
     const lPromiseResult: TRequestResponse = await lRequest.Send(JSONBigInt.Stringify(t.context.TestData));
     lExpected.data = t.context.TestData;
@@ -89,14 +89,14 @@ test.serial("ZMQRequest: Start, Send, Receive, Repeat", async(t: ExecutionContex
         t.deepEqual(JSONBigInt.Parse(lPromiseResult), lExpected);
     }
 
-    lRequest.Stop();
+    lRequest.Close();
 
     await t.throwsAsync(async(): Promise<void> =>
     {
         await lRequest.Send("this should throw");
     });
 
-    lRequest.Start();
+    lRequest.Open();
 
     const lNotThrowResult: TRequestResponse = await lRequest.Send("this should not throw");
     lExpected.data = "this should not throw";
@@ -110,8 +110,8 @@ test.serial("ZMQRequest: Start, Send, Receive, Repeat", async(t: ExecutionContex
         t.deepEqual(JSONBigInt.Parse(lNotThrowResult), lExpected);
     }
 
-    lRequest.Stop();
-    lResponse.Stop();
+    lRequest.Close();
+    lResponse.Close();
 });
 
 test.serial("ZMQResponse: Start, Receive, Repeat", async(t: ExecutionContext<TTestContext>): Promise<void> =>
@@ -126,16 +126,16 @@ test.serial("ZMQResponse: Start, Receive, Repeat", async(t: ExecutionContext<TTe
     const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
     const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, lResponderRouter);
 
-    lRequest.Start();
+    lRequest.Open();
 
-    await lResponse.Start();
+    await lResponse.Open();
     const lFirstResponse: TRequestResponse = await lRequest.Send("hello");
 
     t.is(lFirstResponse, "world");
     t.is(lResponse["mCachedRequests"].size, 1);
 
-    lResponse.Stop();
-    await lResponse.Start();
+    lResponse.Close();
+    await lResponse.Open();
 
     lResponder = async(aMsg: string): Promise<string> => aMsg + " response";
     const lSecondResponse: TRequestResponse = await lRequest.Send("hello");
@@ -143,8 +143,8 @@ test.serial("ZMQResponse: Start, Receive, Repeat", async(t: ExecutionContext<TTe
     t.is(lSecondResponse, "hello response");
     t.is(lResponse["mCachedRequests"].size, 2);
 
-    lResponse.Stop();
-    lRequest.Stop();
+    lResponse.Close();
+    lRequest.Close();
 });
 
 test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestContext>): Promise<void> =>
@@ -169,8 +169,8 @@ test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestConte
     );
     const lSubscriber: ZMQSubscriber = new ZMQSubscriber({ CacheError: (): void => {} });
 
-    await lStatusUpdatePublisher.Start();
-    await lWeatherUpdatePublisher.Start();
+    await lStatusUpdatePublisher.Open();
+    await lWeatherUpdatePublisher.Open();
 
     type TTestDataResult =
     {
@@ -291,9 +291,9 @@ test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestConte
         }
     }
 
-    lSubscriber.Stop();
-    lStatusUpdatePublisher.Stop();
-    lWeatherUpdatePublisher.Stop();
+    lSubscriber.Close();
+    lStatusUpdatePublisher.Close();
+    lWeatherUpdatePublisher.Close();
 });
 
 test.todo("Multiple Subscribers");
