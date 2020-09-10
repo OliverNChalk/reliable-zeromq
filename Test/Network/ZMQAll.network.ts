@@ -48,7 +48,7 @@ test.afterEach((t: ExecutionContext<TTestContext>): void =>
     ImportMock.restore();
 });
 
-test.serial("ZMQRequest: Start, Send, Receive, Repeat", async(t: ExecutionContext<TTestContext>): Promise<void> =>
+test.serial("ZMQRequest: Start, Send, Receive, Close", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
     const lExpected: { code: string; data: any } =
     {
@@ -72,10 +72,9 @@ test.serial("ZMQRequest: Start, Send, Receive, Repeat", async(t: ExecutionContex
             data: lResult,
         });
     });
-    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
-
-    lRequest.Open();
     await lResponse.Open();
+
+    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
 
     const lPromiseResult: TRequestResponse = await lRequest.Send(JSONBigInt.Stringify(t.context.TestData));
     lExpected.data = t.context.TestData;
@@ -88,15 +87,6 @@ test.serial("ZMQRequest: Start, Send, Receive, Repeat", async(t: ExecutionContex
     {
         t.deepEqual(JSONBigInt.Parse(lPromiseResult), lExpected);
     }
-
-    lRequest.Close();
-
-    await t.throwsAsync(async(): Promise<void> =>
-    {
-        await lRequest.Send("this should throw");
-    });
-
-    lRequest.Open();
 
     const lNotThrowResult: TRequestResponse = await lRequest.Send("this should not throw");
     lExpected.data = "this should not throw";
@@ -114,7 +104,7 @@ test.serial("ZMQRequest: Start, Send, Receive, Repeat", async(t: ExecutionContex
     lResponse.Close();
 });
 
-test.serial("ZMQResponse: Start, Receive, Repeat", async(t: ExecutionContext<TTestContext>): Promise<void> =>
+test.serial("ZMQResponse: Start, Receive, Close", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
     let lResponder = async(aMsg: string): Promise<string> => "world";
     const lResponderRouter = (aMsg: string): Promise<string> =>
@@ -125,17 +115,12 @@ test.serial("ZMQResponse: Start, Receive, Repeat", async(t: ExecutionContext<TTe
     t.context.ResponderEndpoint = "tcp://127.0.0.1:4276";
     const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
     const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, lResponderRouter);
-
-    lRequest.Open();
-
     await lResponse.Open();
+
     const lFirstResponse: TRequestResponse = await lRequest.Send("hello");
 
     t.is(lFirstResponse, "world");
     t.is(lResponse["mCachedRequests"].size, 1);
-
-    lResponse.Close();
-    await lResponse.Open();
 
     lResponder = async(aMsg: string): Promise<string> => aMsg + " response";
     const lSecondResponse: TRequestResponse = await lRequest.Send("hello");

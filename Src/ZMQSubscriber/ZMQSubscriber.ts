@@ -64,8 +64,6 @@ export class ZMQSubscriber
             Requester: new ZMQRequest(aEndpoint.RequestAddress),
             TopicEntries: new Map<string, TopicEntry>(),
         };
-
-        lSocketEntry.Requester.Open();
         this.mEndpoints.set(aEndpoint.PublisherAddress, lSocketEntry);
 
         for await (const aBuffers of lSubSocket)
@@ -97,12 +95,13 @@ export class ZMQSubscriber
 
     private InitTopicEntry(
         aEndpoint: TSubscriptionEndpoints,
-        lSubscriptionId: number,
+        aTopic: string,
+        aSubscriptionId: number,
         aCallback: (aMessage: string) => void,
     ): TopicEntry
     {
-        const lTopicEntry: TopicEntry = new TopicEntry(aEndpoint, this.RecoverMissingMessages.bind(this));
-        lTopicEntry.Callbacks.set(lSubscriptionId, aCallback);
+        const lTopicEntry: TopicEntry = new TopicEntry(aEndpoint, aTopic, this.RecoverMissingMessages.bind(this));
+        lTopicEntry.Callbacks.set(aSubscriptionId, aCallback);
 
         return lTopicEntry;
     }
@@ -121,11 +120,11 @@ export class ZMQSubscriber
         const lTopicEntry: TopicEntry = this.mEndpoints.get(aEndpoint.PublisherAddress)!.TopicEntries.get(lTopic)!;
         if (lType === EMessageType.HEARTBEAT)
         {
-            lTopicEntry.ProcessHeartbeatMessage(aEndpoint, lTopic, lReceivedNonce);
+            lTopicEntry.ProcessHeartbeatMessage(lReceivedNonce);
         }
         else if (lType === EMessageType.PUBLISH && lReceivedNonce > lTopicEntry.Nonce)
         {
-            lTopicEntry.ProcessPublishMessage(aEndpoint, lTopic, lReceivedNonce);
+            lTopicEntry.ProcessPublishMessage(lReceivedNonce);
             this.CallSubscribers(aEndpoint, lTopic, lMessage);
         }
     }
@@ -212,7 +211,7 @@ export class ZMQSubscriber
         }
         else
         {
-            const lTopicEntry: TopicEntry = this.InitTopicEntry(aEndpoint, lSubscriptionId, aCallback);
+            const lTopicEntry: TopicEntry = this.InitTopicEntry(aEndpoint, aTopic, lSubscriptionId, aCallback);
 
             lEndpoint.Subscriber.subscribe(aTopic);
             lEndpoint.TopicEntries.set(aTopic, lTopicEntry);

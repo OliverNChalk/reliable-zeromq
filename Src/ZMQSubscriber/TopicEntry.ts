@@ -7,12 +7,14 @@ export default class TopicEntry
     private readonly mCallbacks: Map<number, SubscriptionCallback> = new Map();
     private readonly mEndpoint: TSubscriptionEndpoints;
     private readonly mRecoveryHandler: TRecoveryHandler;
+    private readonly mTopic: string;
     private mNonce: number = 0;
 
-    public constructor(aEndpoint: TSubscriptionEndpoints, aRecoveryHandler: TRecoveryHandler)
+    public constructor(aEndpoint: TSubscriptionEndpoints, aTopic: string, aRecoveryHandler: TRecoveryHandler)
     {
         this.mEndpoint = aEndpoint;
         this.mRecoveryHandler = aRecoveryHandler;
+        this.mTopic = aTopic;
     }
 
     public get Callbacks(): Map<number, SubscriptionCallback>
@@ -25,11 +27,7 @@ export default class TopicEntry
         return this.mNonce;
     }
 
-    public ProcessHeartbeatMessage(
-        aEndpoint: TSubscriptionEndpoints,
-        aTopic: string,
-        aHeartbeatNonce: number,
-    ): void
+    public ProcessHeartbeatMessage(aHeartbeatNonce: number): void
     {
         const lLastSeenNonce: number = this.mNonce;
 
@@ -44,16 +42,12 @@ export default class TopicEntry
                 lMissingNonces.push(i);
             }
 
-            this.mRecoveryHandler(this.mEndpoint, aTopic, lMissingNonces);
+            this.mRecoveryHandler(this.mEndpoint, this.mTopic, lMissingNonces);
             this.mNonce = aHeartbeatNonce;
         }
     }
 
-    public ProcessPublishMessage(
-        aEndpoint: TSubscriptionEndpoints,
-        aTopic: string,
-        aReceivedNonce: number,
-    ): void
+    public ProcessPublishMessage(aReceivedNonce: number): void
     {
         const lLastSeenNonce: number = this.mNonce;
 
@@ -72,7 +66,7 @@ export default class TopicEntry
                 lMissingNonces.push(i);
             }
 
-            this.mRecoveryHandler(this.mEndpoint, aTopic, lMissingNonces);
+            this.mRecoveryHandler(this.mEndpoint, this.mTopic, lMissingNonces);
             this.mNonce = aReceivedNonce;
         }
     }

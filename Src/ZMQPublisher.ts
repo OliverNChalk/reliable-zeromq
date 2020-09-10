@@ -55,6 +55,7 @@ export class ZMQPublisher
         this.mEndpoint = aEndpoint;
         this.mErrorHandlers = aErrorHandlers;
 
+        this.CheckHeartbeats = this.CheckHeartbeats.bind(this);
         this.mResponse = new ZMQResponse(aEndpoint.RequestAddress, this.HandleRequest);
     }
 
@@ -63,7 +64,7 @@ export class ZMQPublisher
         return this.mEndpoint.PublisherAddress;
     }
 
-    private CheckHeartbeats = async(): Promise<void> =>
+    private async CheckHeartbeats(): Promise<void>
     {
         this.mTopicDetails.forEach(async(aValue: TTopicDetails, aKey: string): Promise<void> =>
         {
@@ -155,8 +156,8 @@ export class ZMQPublisher
     {
         this.mPublisher = new zmq.Publisher;
         await this.mPublisher.bind(this.mEndpoint.PublisherAddress);
-
         await this.mResponse.Open();
+
         this.CheckHeartbeats();
     }
 

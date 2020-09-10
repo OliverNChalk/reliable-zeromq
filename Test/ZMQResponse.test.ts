@@ -61,7 +61,7 @@ test.afterEach((t: ExecutionContext<TTestContext>): void =>
     ImportMock.restore();
 });
 
-test.serial("Start, Receive, Repeat", async(t: ExecutionContext<TTestContext>): Promise<void> =>
+test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
     let lResponder = async(aMsg: string): Promise<string> => "world";
     const lResponderRouter = (aMsg: string): Promise<string> =>
@@ -71,7 +71,6 @@ test.serial("Start, Receive, Repeat", async(t: ExecutionContext<TTestContext>): 
 
     const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, lResponderRouter);
     const lSendMock: Sinon.SinonStub = t.context.RouterMock.mock("send", Promise.resolve());
-
     await lResponse.Open();
 
     t.is(lResponse.Endpoint, t.context.ResponderEndpoint);
@@ -87,9 +86,6 @@ test.serial("Start, Receive, Repeat", async(t: ExecutionContext<TTestContext>): 
     t.is(lSendMock.callCount, 1);
     t.is(lResponse["mCachedRequests"].size, 1);
     t.deepEqual(lSendMock.getCall(0).args[0], ["sender", "0", "world"]);
-
-    lResponse.Close();
-    await lResponse.Open();
 
     lResponder = async(aMsg: string): Promise<string> => aMsg + " response";
     t.context.SendToReceiver([

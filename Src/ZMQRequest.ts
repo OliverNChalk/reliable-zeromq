@@ -47,6 +47,8 @@ export class ZMQRequest
         this.mRoundTripMax = Config.MaximumLatency * 2; // Send + response latency
         this.mEndpoint = aReceiverEndpoint;
         this.mOurUniqueId = uniqid();
+
+        this.Open();
     }
 
     public get Endpoint(): string
@@ -80,6 +82,13 @@ export class ZMQRequest
         }
 
         this.AssertRequestProcessed(aRequestId, aRequest);
+    }
+
+    private Open(): void
+    {
+        this.mDealer = new zmq.Dealer;
+        this.mDealer.connect(this.mEndpoint);
+        this.ResponseHandler();
     }
 
     private async ProcessSend(): Promise<void>
@@ -136,13 +145,6 @@ export class ZMQRequest
         this.mDealer.linger = 0;
         this.mDealer.close();
         this.mDealer = undefined!;
-    }
-
-    public Open(): void
-    {
-        this.mDealer = new zmq.Dealer;
-        this.mDealer.connect(this.mEndpoint);
-        this.ResponseHandler();
     }
 
     public async Send(aData: string): Promise<TRequestResponse>

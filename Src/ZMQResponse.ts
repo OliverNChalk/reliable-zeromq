@@ -60,7 +60,7 @@ export class ZMQResponse
         this.mRouter = undefined!;
     }
 
-    public async Open(): Promise<void>
+    public async Open(): Promise<void>  // TODO: Despite having a bind, it could be safe to hide this because the class is only receiving
     {
         this.mRouter = new zmq.Router();
         await this.mRouter.bind(this.mEndpoint);

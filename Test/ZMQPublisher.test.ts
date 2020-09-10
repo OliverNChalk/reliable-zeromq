@@ -62,7 +62,7 @@ test.afterEach((t: ExecutionContext<TTestContext>): void =>
     ImportMock.restore();
 });
 
-test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestContext>): Promise<void> =>
+test.serial("Start, Publish, Respond, Close", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
     const clock: Sinon.SinonFakeTimers = Sinon.useFakeTimers();
     const lZmqPublisher: MockManager<zmq.Publisher> = t.context.PublisherMock;
@@ -74,11 +74,11 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
         },
     );
 
-    t.is(lPublisher.Endpoint, DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress);
-
     lZmqPublisher.mock("bind", Promise.resolve());
-    lResponseMock.mock("Open", Promise.resolve());
-    lPublisher.Open();
+    lResponseMock.mock("Open" as any, Promise.resolve());
+    await lPublisher.Open();
+
+    t.is(lPublisher.Endpoint, DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress);
 
     const lSendMock: Sinon.SinonStub = lZmqPublisher.mock("send", Promise.resolve());
     await lPublisher.Publish("myTopicA", "myFirstMessage");
@@ -123,9 +123,6 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
         = await lPublisher["HandleRequest"](JSONBigInt.Stringify(lInvalidRecoveryRequest));
 
     t.deepEqual(JSONBigInt.Parse(lInvalidRecoveryResponse), []);
-
-    lPublisher.Close();
-    await lPublisher.Open();
 
     const lTestData: [string, string][] =
     [
@@ -208,34 +205,6 @@ test.serial("Start, Publish, Respond, Repeat", async(t: ExecutionContext<TTestCo
     await YieldToEventLoop();
 
     t.is(lSendMock.callCount, 13);
-});
-
-test.serial("Start, Stop, Start, Publish", async(t: ExecutionContext<TTestContext>): Promise<void> =>
-{
-    const lZmqPublisher: MockManager<zmq.Publisher> = t.context.PublisherMock;
-    const lResponseMock: MockManager<ZMQResponse.ZMQResponse> = t.context.ResponderMock;
-    const lPublisher: ZMQPublisher = new ZMQPublisher(
-        t.context.Endpoints,
-        {
-            CacheError: (): void => {},
-        },
-    );
-
-    lPublisher.Open();
-    lPublisher.Close();
-
-    lZmqPublisher.mock("bind", Promise.resolve());
-    lResponseMock.mock("Open", Promise.resolve());
-    lPublisher.Open();
-
-    const lSendMock: Sinon.SinonStub = lZmqPublisher.mock("send", Promise.resolve());
-    await lPublisher.Publish("myTopicA", "myFirstMessage");
-
-    t.is(lSendMock.callCount, 1);
-    t.deepEqual(lSendMock.getCall(0).args[0], ["myTopicA", EMessageType.PUBLISH, "1", "myFirstMessage"]);
-    t.is(lPublisher["mMessageCaches"].size, 1);
-    t.is(lPublisher["mMessageCaches"].get("myTopicA")!.size, 1);
-    t.is(lPublisher["mTopicDetails"].size, 1);
 
     lPublisher.Close();
 });
@@ -260,8 +229,8 @@ test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
     );
 
     lZmqPublisher.mock("bind", Promise.resolve());
-    lResponseMock.mock("Open", Promise.resolve());
-    lPublisher.Open();
+    lResponseMock.mock("Open" as any, Promise.resolve());
+    await lPublisher.Open();
 
     const lSendMock: Sinon.SinonStub = lZmqPublisher.mock("send", Promise.resolve());
     await lPublisher.Publish("myTopicA", "myFirstMessage");

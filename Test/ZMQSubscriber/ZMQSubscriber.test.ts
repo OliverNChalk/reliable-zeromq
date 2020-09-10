@@ -4,13 +4,13 @@ import anyTest, { ExecutionContext } from "ava";
 import sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
-import { TCacheError } from "../Src/Errors";
-import JSONBigInt from "../Src/Utils/JSONBigInt";
-import { EMessageType, PUBLISHER_CACHE_EXPIRED, TRecoveryResponse } from "../Src/ZMQPublisher";
-import * as ZMQRequest from "../Src/ZMQRequest";
-import { TSubscriptionEndpoints, ZMQSubscriber } from "../Src/ZMQSubscriber/ZMQSubscriber";
-import { YieldToEventLoop } from "./Helpers/AsyncTools";
-import { DUMMY_ENDPOINTS } from "./Helpers/DummyEndpoints.data";
+import { TCacheError } from "../../Src/Errors";
+import JSONBigInt from "../../Src/Utils/JSONBigInt";
+import { EMessageType, PUBLISHER_CACHE_EXPIRED, TRecoveryResponse } from "../../Src/ZMQPublisher";
+import * as ZMQRequest from "../../Src/ZMQRequest";
+import { TSubscriptionEndpoints, ZMQSubscriber } from "../../Src/ZMQSubscriber/ZMQSubscriber";
+import { YieldToEventLoop } from "../Helpers/AsyncTools";
+import { DUMMY_ENDPOINTS } from "../Helpers/DummyEndpoints.data";
 
 type TAsyncIteratorResult = { value: any; done: boolean };
 type TTestContext =
@@ -63,7 +63,7 @@ test.afterEach((t: ExecutionContext<TTestContext>): void =>
     ImportMock.restore();
 });
 
-test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTestContext>): Promise<void> =>
+test.serial("Start, Subscribe, Recover, Close", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
     type TTopic = {
         topic: string;
@@ -201,8 +201,6 @@ test.serial("Start, Subscribe, Recover, Repeat", async(t: ExecutionContext<TTest
     // END SETUP
 
     const lSubscriber: ZMQSubscriber = new ZMQSubscriber({ CacheError: (): void => {} });
-
-    lSubscriber.Close();
 
     let lCalled: boolean = false;
     lSubscriber.Subscribe(
