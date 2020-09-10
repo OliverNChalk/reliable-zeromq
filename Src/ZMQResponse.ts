@@ -14,6 +14,18 @@ export class ZMQResponse
         this.mCachedRequests = new ExpiryMap(3 * Config.MaximumLatency);    // 3 times latency assumption, this is a bit arbitrary
         this.mEndpoint = aReplierEndpoint;
         this.mRequestHandler = aReceiver;
+
+        this.Open();
+    }
+
+    private Open(): void
+    {
+        this.mRouter = new zmq.Router();
+        this.mRouter.bind(this.mEndpoint)
+            .then(() =>
+            {
+                this.ReceiveLoop();
+            });
     }
 
     public get Endpoint(): string
@@ -58,13 +70,5 @@ export class ZMQResponse
         this.mRouter.linger = 0;
         this.mRouter.close();
         this.mRouter = undefined!;
-    }
-
-    public async Open(): Promise<void>  // TODO: Despite having a bind, it could be safe to hide this because the class is only receiving
-    {
-        this.mRouter = new zmq.Router();
-        await this.mRouter.bind(this.mEndpoint);
-
-        this.ReceiveLoop();
     }
 }

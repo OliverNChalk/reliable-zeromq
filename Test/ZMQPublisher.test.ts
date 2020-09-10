@@ -66,7 +66,6 @@ test.serial("Start, Publish, Respond, Close", async(t: ExecutionContext<TTestCon
 {
     const clock: Sinon.SinonFakeTimers = Sinon.useFakeTimers();
     const lZmqPublisher: MockManager<zmq.Publisher> = t.context.PublisherMock;
-    const lResponseMock: MockManager<ZMQResponse.ZMQResponse> = t.context.ResponderMock;
     const lPublisher: ZMQPublisher = new ZMQPublisher(
         t.context.Endpoints,
         {
@@ -75,7 +74,6 @@ test.serial("Start, Publish, Respond, Close", async(t: ExecutionContext<TTestCon
     );
 
     lZmqPublisher.mock("bind", Promise.resolve());
-    lResponseMock.mock("Open" as any, Promise.resolve());
     await lPublisher.Open();
 
     t.is(lPublisher.Endpoint, DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress);
@@ -213,7 +211,6 @@ test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
 {
     const clock: Sinon.SinonFakeTimers = Sinon.useFakeTimers();
     const lZmqPublisher: MockManager<zmq.Publisher> = t.context.PublisherMock;
-    const lResponseMock: MockManager<ZMQResponse.ZMQResponse> = t.context.ResponderMock;
 
     const lCacheErrors: TCacheError[] = [];
 
@@ -229,7 +226,7 @@ test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
     );
 
     lZmqPublisher.mock("bind", Promise.resolve());
-    lResponseMock.mock("Open" as any, Promise.resolve());
+    // lResponseMock.mock("Open" as any, Promise.resolve());
     await lPublisher.Open();
 
     const lSendMock: Sinon.SinonStub = lZmqPublisher.mock("send", Promise.resolve());

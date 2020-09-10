@@ -54,6 +54,19 @@ export class ZMQSubscriber
         return ++this.mTokenId;
     }
 
+    private static PruneTopicIfEmpty(
+        lTopicEntry: TopicEntry,
+        lEndpoint: TEndpointEntry,
+        lInternalSubscription: TInternalSubscription,
+    ): void
+    {
+        if (lTopicEntry.Callbacks.size === 0)
+        {
+            lEndpoint.Subscriber.unsubscribe(lInternalSubscription.Topic);
+            lEndpoint.TopicEntries.delete(lInternalSubscription.Topic);
+        }
+    }
+
     private async AddSubscriptionEndpoint(aEndpoint: TSubscriptionEndpoints): Promise<void>
     {
         const lSubSocket: zmq.Subscriber = new zmq.Subscriber;
@@ -126,19 +139,6 @@ export class ZMQSubscriber
         {
             lTopicEntry.ProcessPublishMessage(lReceivedNonce);
             this.CallSubscribers(aEndpoint, lTopic, lMessage);
-        }
-    }
-
-    private PruneTopicIfEmpty(
-        lTopicEntry: TopicEntry,
-        lEndpoint: TEndpointEntry,
-        lInternalSubscription: TInternalSubscription,
-    ): void
-    {
-        if (lTopicEntry.Callbacks.size === 0)
-        {
-            lEndpoint.Subscriber.unsubscribe(lInternalSubscription.Topic);
-            lEndpoint.TopicEntries.delete(lInternalSubscription.Topic);
         }
     }
 
@@ -234,7 +234,7 @@ export class ZMQSubscriber
             lTopicEntry.Callbacks.delete(aSubscriptionId);
             this.mSubscriptions.delete(aSubscriptionId);
 
-            this.PruneTopicIfEmpty(lTopicEntry, lEndpoint, lInternalSubscription);
+            ZMQSubscriber.PruneTopicIfEmpty(lTopicEntry, lEndpoint, lInternalSubscription);
         }
     }
 }

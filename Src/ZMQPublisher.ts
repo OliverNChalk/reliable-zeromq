@@ -47,7 +47,7 @@ export class ZMQPublisher
     private readonly mTopicDetails: Map<string, TTopicDetails> = new Map();
     private mHeartbeatTimeout: NodeJS.Timeout | undefined;
     private mPublisher!: zmq.Publisher;
-    private mResponse: ZMQResponse;
+    private mResponse!: ZMQResponse;
     private mSafeToPublish: boolean = true;
 
     public constructor(aEndpoint: TSubscriptionEndpoints, aErrorHandlers: TZMQPublisherErrorHandlers)
@@ -56,7 +56,6 @@ export class ZMQPublisher
         this.mErrorHandlers = aErrorHandlers;
 
         this.CheckHeartbeats = this.CheckHeartbeats.bind(this);
-        this.mResponse = new ZMQResponse(aEndpoint.RequestAddress, this.HandleRequest);
     }
 
     public get Endpoint(): string
@@ -154,9 +153,9 @@ export class ZMQPublisher
 
     public async Open(): Promise<void>
     {
+        this.mResponse = new ZMQResponse(this.mEndpoint.RequestAddress, this.HandleRequest);
         this.mPublisher = new zmq.Publisher;
         await this.mPublisher.bind(this.mEndpoint.PublisherAddress);
-        await this.mResponse.Open();
 
         this.CheckHeartbeats();
     }

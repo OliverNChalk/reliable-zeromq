@@ -72,7 +72,6 @@ test.serial("ZMQRequest: Start, Send, Receive, Close", async(t: ExecutionContext
             data: lResult,
         });
     });
-    await lResponse.Open();
 
     const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
 
@@ -115,7 +114,6 @@ test.serial("ZMQResponse: Start, Receive, Close", async(t: ExecutionContext<TTes
     t.context.ResponderEndpoint = "tcp://127.0.0.1:4276";
     const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
     const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, lResponderRouter);
-    await lResponse.Open();
 
     const lFirstResponse: TRequestResponse = await lRequest.Send("hello");
 

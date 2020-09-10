@@ -5,8 +5,8 @@ import * as sinon from "sinon";
 import Sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
-import { Delay } from "../Src/Utils/Delay";
 import { ZMQResponse } from "../Src/ZMQResponse";
+import { YieldToEventLoop } from "./Helpers/AsyncTools";
 
 type TAsyncIteratorResult = { value: any; done: boolean };
 type TTestContext =
@@ -69,11 +69,13 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
         return lResponder(aMsg);    // Necessary so we can update lResponder throughout
     };
 
-    const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, lResponderRouter);
     const lSendMock: Sinon.SinonStub = t.context.RouterMock.mock("send", Promise.resolve());
-    await lResponse.Open();
+    const lBindMock: Sinon.SinonStub = t.context.RouterMock.mock("bind", Promise.resolve());
+    const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, lResponderRouter);
+    await YieldToEventLoop();   // Listening to asyncIterator occurs asynchronously, so we need to yield
 
     t.is(lResponse.Endpoint, t.context.ResponderEndpoint);
+    t.is(lBindMock.callCount, 1);
 
     t.context.SendToReceiver([
         "sender",
@@ -82,7 +84,7 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
         "hello",
     ]);
 
-    await Delay(0);
+    await YieldToEventLoop();
     t.is(lSendMock.callCount, 1);
     t.is(lResponse["mCachedRequests"].size, 1);
     t.deepEqual(lSendMock.getCall(0).args[0], ["sender", "0", "world"]);
@@ -94,7 +96,8 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
         "1",
         "this should not throw",
     ]);
-    await Delay(0);
+    await YieldToEventLoop();
+
     t.is(lSendMock.callCount, 2);
     t.is(lResponse["mCachedRequests"].size, 2);
     t.deepEqual(lSendMock.getCall(1).args[0], ["sender", "1", "this should not throw response"]);
@@ -105,7 +108,8 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
         "1",
         "this should not throw",
     ]);
-    await Delay(0);
+    await YieldToEventLoop();
+
     t.is(lSendMock.callCount, 3);
     t.is(lResponse["mCachedRequests"].size, 2);
     t.deepEqual(lSendMock.getCall(2).args[0], ["sender", "1", "this should not throw response"]);
@@ -116,7 +120,8 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
         "1",
         "this should not throw",
     ]);
-    await Delay(0);
+    await YieldToEventLoop();
+
     t.is(lSendMock.callCount, 4);
     t.is(lResponse["mCachedRequests"].size, 2);
     t.deepEqual(lSendMock.getCall(3).args[0], ["sender", "1", "this should not throw response"]);
