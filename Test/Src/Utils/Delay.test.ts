@@ -2,7 +2,7 @@
 import anyTest, { ExecutionContext } from "ava";
 import type { TestInterface } from "ava";
 import * as sinon from "sinon";
-import { Delay } from "../../Src/Utils/Delay";
+import { Delay } from "../../../Src/Utils/Delay";
 
 type TTestContext =
 {};

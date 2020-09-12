@@ -1,7 +1,7 @@
 /* tslint:disable: no-string-literal */
 import type { ExecutionContext } from "ava";
 import test from "ava";
-import Config from "../Src/Config";
+import Config from "../../Src/Config";
 
 // NOTE: Config is a static class and tests will cause side-effects
 test("Full Test", (t: ExecutionContext<any>) =>

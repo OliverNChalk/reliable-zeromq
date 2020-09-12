@@ -4,10 +4,10 @@ import type { TestInterface } from "ava";
 import * as sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
-import Config from "../Src/Config";
-import JSONBigInt from "../Src/Utils/JSONBigInt";
-import { ERequestBody, TRequestResponse, ZMQRequest } from "../Src/ZMQRequest";
-import { YieldToEventLoop } from "./Helpers/AsyncTools";
+import Config from "../../Src/Config";
+import JSONBigInt from "../../Src/Utils/JSONBigInt";
+import { ERequestBody, TRequestResponse, ZMQRequest } from "../../Src/ZMQRequest";
+import { YieldToEventLoop } from "../Helpers/AsyncTools";
 
 type TAsyncIteratorResult = { value: any; done: boolean };
 type TTestContext =

@@ -2,7 +2,7 @@
 import anyTest, { ExecutionContext } from "ava";
 import type { TestInterface } from "ava";
 import * as sinon from "sinon";
-import ExpiryMap from "../../Src/Utils/ExpiryMap";
+import ExpiryMap from "../../../Src/Utils/ExpiryMap";
 
 type TTestContext =
 {

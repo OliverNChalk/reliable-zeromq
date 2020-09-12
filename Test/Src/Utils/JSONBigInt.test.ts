@@ -1,7 +1,7 @@
 /* tslint:disable: no-string-literal */
 import anyTest, { ExecutionContext } from "ava";
 import type { TestInterface } from "ava";
-import JSONBigInt from "../../Src/Utils/JSONBigInt";
+import JSONBigInt from "../../../Src/Utils/JSONBigInt";
 
 type TTestContext =
 {

@@ -4,14 +4,14 @@ import anyTest, { ExecutionContext } from "ava";
 import * as Sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
-import Config from "../Src/Config";
-import { TCacheError } from "../Src/Errors";
-import JSONBigInt from "../Src/Utils/JSONBigInt";
-import { EMessageType, EPublishMessage, PUBLISHER_CACHE_EXPIRED, ZMQPublisher } from "../Src/ZMQPublisher";
-import * as ZMQResponse from "../Src/ZMQResponse";
-import { TSubscriptionEndpoints } from "../Src/ZMQSubscriber/ZMQSubscriber";
-import { YieldToEventLoop } from "./Helpers/AsyncTools";
-import { DUMMY_ENDPOINTS } from "./Helpers/DummyEndpoints.data";
+import Config from "../../Src/Config";
+import { TCacheError } from "../../Src/Errors";
+import JSONBigInt from "../../Src/Utils/JSONBigInt";
+import { EMessageType, EPublishMessage, PUBLISHER_CACHE_EXPIRED, ZMQPublisher } from "../../Src/ZMQPublisher";
+import * as ZMQResponse from "../../Src/ZMQResponse";
+import { TSubscriptionEndpoints } from "../../Src/ZMQSubscriber/ZMQSubscriber";
+import { YieldToEventLoop } from "../Helpers/AsyncTools";
+import { DUMMY_ENDPOINTS } from "../Helpers/DummyEndpoints.data";
 
 type TTestContext =
 {

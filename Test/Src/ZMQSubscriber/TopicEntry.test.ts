@@ -2,9 +2,9 @@
 import type { TestInterface } from "ava";
 import anyTest, { ExecutionContext } from "ava";
 import { MockManager } from "ts-mock-imports";
-import * as ZMQRequest from "../../Src/ZMQRequest";
-import TopicEntry from "../../Src/ZMQSubscriber/TopicEntry";
-import { TSubscriptionEndpoints } from "../../Src/ZMQSubscriber/ZMQSubscriber";
+import * as ZMQRequest from "../../../Src/ZMQRequest";
+import TopicEntry from "../../../Src/ZMQSubscriber/TopicEntry";
+import { TSubscriptionEndpoints } from "../../../Src/ZMQSubscriber/ZMQSubscriber";
 type TTestContext =
 {
     RequestMock: MockManager<ZMQRequest.ZMQRequest>;

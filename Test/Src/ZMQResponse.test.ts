@@ -5,8 +5,8 @@ import * as sinon from "sinon";
 import Sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
-import { ZMQResponse } from "../Src/ZMQResponse";
-import { YieldToEventLoop } from "./Helpers/AsyncTools";
+import { ZMQResponse } from "../../Src/ZMQResponse";
+import { YieldToEventLoop } from "../Helpers/AsyncTools";
 
 type TAsyncIteratorResult = { value: any; done: boolean };
 type TTestContext =
