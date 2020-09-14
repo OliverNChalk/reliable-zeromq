@@ -1,14 +1,7 @@
-/* tslint:disable */
-import type { TestInterface } from "ava";
-import anyTest, { ExecutionContext } from "ava";
-import * as sinon from "sinon";
-import { ImportMock } from "ts-mock-imports";
+/* tslint:disable no-console */
 import { Delay } from "../../Src/Utils/Delay";
-import JSONBigInt from "../../Src/Utils/JSONBigInt";
-import { EPublishMessage, TPublishMessage, TRecoveryRequest, ZMQPublisher } from "../../Src/ZMQPublisher";
-import { TRequestResponse, ZMQRequest } from "../../Src/ZMQRequest";
-import { ZMQResponse } from "../../Src/ZMQResponse";
-import { TSubscriptionEndpoints, ZMQSubscriber } from "../../Src/ZMQSubscriber/ZMQSubscriber";
+import { ZMQPublisher } from "../../Src/ZMQPublisher";
+import { ZMQSubscriber } from "../../Src/ZMQSubscriber/ZMQSubscriber";
 import { DUMMY_ENDPOINTS } from "../Helpers/DummyEndpoints.data";
 
 async function RunHWMTest(): Promise<void>
@@ -24,14 +17,6 @@ async function RunHWMTest(): Promise<void>
     );
     await lStatusUpdatePublisher.Open();
     const lSubscriber: ZMQSubscriber = new ZMQSubscriber({ CacheError: (): void => {} });
-    lSubscriber.SetWarnHandlers(
-        {
-            MessageRecovery: (aRecoveryRequest: TRecoveryRequest): void =>
-            {
-                console.warn(aRecoveryRequest);
-            },
-        },
-    );
 
     const lSentMap: Map<string, boolean> = new Map();
     const lReceivedMap: Map<string, boolean> = new Map();

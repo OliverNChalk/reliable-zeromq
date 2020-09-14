@@ -48,7 +48,7 @@ export class ZMQResponse
                 lPromise = this.mRequestHandler(msg.toString());
                 this.mCachedRequests.set(lMessageId, lPromise); // TODO: Timer starts from when promise is inserted, this will cause issues if we move to an req, ack, rep model
 
-                lPromise.then((aResponse: string): void =>
+                lPromise.then((aResponse: string): void =>      // TODO: Review performance if we use a non-blocking await lPromise (would need to wrap in its own async method)
                 {
                     this.mCachedRequests.set(lMessageId, aResponse);
                 });

@@ -13,8 +13,10 @@
   "devDependencies": {
     "@types/sinon": "9.0.4",
     "ava": "3.10.1",
+    "benchmark": "^2.1.4",
     "gulp": "4.0.2",
     "husky": "4.2.5",
+    "microtime": "^3.0.0",
     "nyc": "15.1.0",
     "rewiremock": "3.14.3",
     "sinon": "9.0.2",
@@ -25,7 +27,7 @@
     "typescript": "4.0.2"
   },
   "scripts": {
-    "prepare": "gulp build",
+    "prepublishOnly": "gulp build",
     "test": "gulp test",
     "build": "gulp build",
     "tslint-check": "tslint --project .",
