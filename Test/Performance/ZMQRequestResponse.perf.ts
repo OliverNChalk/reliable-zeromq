@@ -18,42 +18,43 @@ function Requester(): Promise<any>
     return lRequester.Send("PerfRequest");
 }
 
-const lPerfTest: PerfTest = new PerfTest(
-    {
-        Name: "SyncRequestResponse",
-        Function: Requester,
-        FunctionReturnsPromise: true,
-        Console: true,
-        State: [
-            { Key: "lRequester", Value: lRequester },
-        ],
-    },
-);
+const lBenchmarks: PerfTest[] =
+[
+    new PerfTest(
+        {
+            Name: "SyncRequestResponse",
+            Function: Requester,
+            FunctionReturnsPromise: true,
+            Console: true,
+            State: [
+                { Key: "lRequester", Value: lRequester },
+            ],
+        },
+    ),
+    new PerfTest(
+        {
+            Name: "SyncRequestResponse",
+            Function: Requester,
+            FunctionReturnsPromise: true,
+            Console: true,
+            State: [
+                { Key: "lRequester", Value: lRequester },
+            ],
+        },
+    ),
+];
 
-const lBench: PerfTest = new PerfTest(
-    {
-        Name: "AsyncRequestResponse",
-        Function: Requester,
-        FunctionReturnsPromise: true,
-        Console: true,
-        State: [
-            { Key: "lRequester", Value: lRequester },
-        ],
-    },
-);
+async function RunTests(aBenchmarks: PerfTest[]): Promise<void>
+{
+    await Delay(100);
 
-Delay(200)
-    .then(() =>
+    for (let i: number = 0; i < aBenchmarks.length; ++i)
     {
-        lPerfTest.Run()
-            .then(() =>
-                {
-                    lBench.Run()
-                        .then(() =>
-                        {
-                            lRequester.Close();
-                            lResponder.Close();
-                        });
-                },
-            );
-    });
+        await aBenchmarks[i].Run();
+    }
+
+    lResponder.Close();
+    lRequester.Close();
+}
+
+RunTests(lBenchmarks);

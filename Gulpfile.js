@@ -3,11 +3,13 @@ const gulp  = require("gulp");
 const cp    = require("child_process");
 const exec  = cp.exec;
 const del   = require("del");
+const fs    = require("fs");
 
 const RootFolder  = `${__dirname}`;
 const DistFolder  = `${RootFolder}/Dist`;
 const SrcFolder   = `${RootFolder}/Src`;
 const TestFolder  = `${DistFolder}/Test`;
+const PerfTestFolder  = `${TestFolder}/Performance`;
 
 const _TSC_       =  `${RootFolder}/node_modules/typescript/bin/tsc`;
 const _AVA_       = `node ${RootFolder}/node_modules/ava/cli.js`;
@@ -66,6 +68,61 @@ gulp.task("test", done => {
         serr && console.error(serr);
         done(error);
     }).stdout.pipe(process.stdout);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+gulp.task("perf-test", done =>
+{
+    let lPerformanceTests = [];
+    fs.readdir(PerfTestFolder, function (err, files)
+    {
+        if (err)
+        {
+            throw err;
+        }
+
+        lPerformanceTests = files;
+        QueuePerformanceTest();
+    });
+
+    let lCallCount = 0;
+    function QueuePerformanceTest(aIndex = 0)
+    {
+        if (IsValidJS(lPerformanceTests[aIndex]))
+        {
+            exec(`node "${PerfTestFolder}/${lPerformanceTests[aIndex]}"`, {}, (error, sout, serr) =>
+            {
+                if (!serr && !error)
+                {
+                    if (aIndex + 1 < lPerformanceTests.length)
+                    {
+                        QueuePerformanceTest(++aIndex);
+                    }
+                    else
+                    {
+                        done();
+                    }
+                }
+                else
+                {
+                    serr && console.error(serr);
+                    done(error);
+                }
+            }).stdout.pipe(process.stdout);
+        }
+        else
+        {
+            if (++aIndex < lPerformanceTests.length)
+                QueuePerformanceTest(aIndex);
+            else
+                done();
+        }
+    }
+
+    function IsValidJS(aFileName)
+    {
+        return aFileName.slice(-8) === ".perf.js";
+    }
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
