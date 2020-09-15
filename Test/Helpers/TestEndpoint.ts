@@ -1,6 +1,6 @@
 import * as Path from "path";
 
-export default class Endpoint
+export default class TestEndpoint
 {
     public static GetEndpoint(aName: string): string
     {

@@ -5,9 +5,10 @@
   "main": "Dist/Src/Index.js",
   "types": "Dist/Src/Index.d.ts",
   "dependencies": {
+    "@types/uniqid": "5.2.0",
+    "perf-test": "github:OliverNChalk/perf-test",
     "typescript-collections": "1.3.3",
     "uniqid": "5.2.0",
-    "@types/uniqid": "5.2.0",
     "zeromq": "6.0.0-beta.6"
   },
   "devDependencies": {
