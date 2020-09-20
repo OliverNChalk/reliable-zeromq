@@ -22,18 +22,7 @@ const lBenchmarks: PerfTest[] =
 [
     new PerfTest(
         {
-            Name: "SyncRequestResponse",
-            Function: Requester,
-            FunctionReturnsPromise: true,
-            Console: true,
-            State: [
-                { Key: "lRequester", Value: lRequester },
-            ],
-        },
-    ),
-    new PerfTest(
-        {
-            Name: "SyncRequestResponse",
+            Name: "RequestResponse > Synchronous Throughput",
             Function: Requester,
             FunctionReturnsPromise: true,
             Console: true,
@@ -46,7 +35,7 @@ const lBenchmarks: PerfTest[] =
 
 async function RunTests(aBenchmarks: PerfTest[]): Promise<void>
 {
-    await Delay(100);
+    await Delay(500);
 
     for (let i: number = 0; i < aBenchmarks.length; ++i)
     {
