@@ -69,7 +69,8 @@ test.serial("Start, Publish, Respond, Close", async(t: ExecutionContext<TTestCon
     const lPublisher: ZMQPublisher = new ZMQPublisher(
         t.context.Endpoints,
         {
-            CacheError: (): void => {},
+            CacheError: undefined!,
+            HighWaterMarkWarning: undefined!,
         },
     );
 
@@ -212,16 +213,16 @@ test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
     const clock: Sinon.SinonFakeTimers = Sinon.useFakeTimers();
     const lZmqPublisher: MockManager<zmq.Publisher> = t.context.PublisherMock;
 
-    const lCacheErrors: TCacheError[] = [];
-
     // Set Config for Test:
     Config.MaximumLatency = 1000;
     Config.HeartBeatInterval = 500;
 
+    const lCacheErrors: TCacheError[] = [];
     const lPublisher: ZMQPublisher = new ZMQPublisher(
         t.context.Endpoints,
         {
             CacheError: (aError: TCacheError): void => { lCacheErrors.push(aError); },
+            HighWaterMarkWarning: undefined!,
         },
     );
 

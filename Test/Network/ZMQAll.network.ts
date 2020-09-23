@@ -138,7 +138,8 @@ test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestConte
             RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
         },
         {
-            CacheError: (): void => {},
+            CacheError: undefined!,
+            HighWaterMarkWarning: undefined!,
         },
     );
     const lWeatherUpdatePublisher: ZMQPublisher = new ZMQPublisher(
@@ -147,10 +148,11 @@ test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestConte
             RequestAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.RequestAddress,
         },
         {
-            CacheError: (): void => {},
+            CacheError: undefined!,
+            HighWaterMarkWarning: undefined!,
         },
     );
-    const lSubscriber: ZMQSubscriber = new ZMQSubscriber({ CacheError: (): void => {} });
+    const lSubscriber: ZMQSubscriber = new ZMQSubscriber({ CacheError: undefined!, DroppedMessageWarn: undefined! });
 
     await lStatusUpdatePublisher.Open();
     await lWeatherUpdatePublisher.Open();

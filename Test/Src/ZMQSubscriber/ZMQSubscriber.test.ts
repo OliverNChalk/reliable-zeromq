@@ -8,7 +8,11 @@ import { TCacheError } from "../../../Src/Errors";
 import JSONBigInt from "../../../Src/Utils/JSONBigInt";
 import { EMessageType, PUBLISHER_CACHE_EXPIRED, TRecoveryResponse } from "../../../Src/ZMQPublisher";
 import * as ZMQRequest from "../../../Src/ZMQRequest";
-import { TSubscriptionEndpoints, ZMQSubscriber } from "../../../Src/ZMQSubscriber/ZMQSubscriber";
+import {
+    TDroppedMessageWarning,
+    TSubscriptionEndpoints,
+    ZMQSubscriber,
+} from "../../../Src/ZMQSubscriber/ZMQSubscriber";
 import { YieldToEventLoop } from "../../Helpers/AsyncTools";
 import { DUMMY_ENDPOINTS } from "../../Helpers/DummyEndpoints.data";
 
@@ -200,7 +204,7 @@ test.serial("Start, Subscribe, Recover, Close", async(t: ExecutionContext<TTestC
 
     // END SETUP
 
-    const lSubscriber: ZMQSubscriber = new ZMQSubscriber({ CacheError: (): void => {} });
+    const lSubscriber: ZMQSubscriber = new ZMQSubscriber({ CacheError: undefined!, DroppedMessageWarn: undefined! });
 
     let lCalled: boolean = false;
     lSubscriber.Subscribe(
@@ -340,9 +344,13 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
     const lIteratorStub: Sinon.SinonStub = lZmqSubscriberMock.mock(Symbol.asyncIterator, lNewIterator);
     lIteratorStub.callsFake(lNewIterator);
 
-    const lErrors: TCacheError[] = [];
+    const lCacheErrors: TCacheError[] = [];
+    const lDroppedMessages: TDroppedMessageWarning[] = [];
     const lSubscriber: ZMQSubscriber = new ZMQSubscriber(
-        { CacheError: (aError: TCacheError): void => { lErrors.push(aError); } },
+        {
+            CacheError: (aError: TCacheError): void => { lCacheErrors.push(aError); },
+            DroppedMessageWarn: (aWarning: TDroppedMessageWarning): void => { lDroppedMessages.push(aWarning); },
+        },
     );
 
     const lSubscriptionIds: number[] = [];
@@ -394,6 +402,7 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
     await YieldToEventLoop();
 
     t.is(lSendMock.getCall(0).args[0], JSONBigInt.Stringify(["TopicToTest", 1, 2, 3]));
+    t.deepEqual(lDroppedMessages[0], { Topic: "TopicToTest", Nonces: [1, 2, 3] });
     t.is(lResults[0], "Hello4");    // Initial message first, followed by recovered messages in order
     t.is(lResults[1], "Hello1");
     t.is(lResults[2], "Hello2");
@@ -417,7 +426,7 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
     t.is(lResults[7], "Sunny");
     t.is(lResults[8], undefined);
     t.deepEqual(
-        lErrors[0],
+        lCacheErrors[0],
         {
             Endpoint: t.context.WeatherEndpoint,
             Topic: "Sydney",
@@ -462,7 +471,7 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
 
     t.is(lSendMock.getCall(2).args[0], JSONBigInt.Stringify(["Sydney", 7]));
     t.deepEqual(
-        lErrors[1],
+        lCacheErrors[1],
         {
             Endpoint: t.context.WeatherEndpoint,
             Topic: "Sydney",

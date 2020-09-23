@@ -29,9 +29,17 @@ export type TRecoveryMessage = TPublishMessage | TRecoveryFailure;
 export type TRecoveryRequest = [string, ...number[]];
 export type TRecoveryResponse = TRecoveryMessage[];
 
+export type THighWaterMarkWarning =
+{
+    Topic: string;
+    Nonce: number;
+    Message: string;
+};
+
 export type TZMQPublisherErrorHandlers =
 {
     CacheError: (aError: TCacheError) => void;
+    HighWaterMarkWarning: (aWarning: THighWaterMarkWarning) => void;
 };
 
 type TTopicDetails =
@@ -44,13 +52,13 @@ export class ZMQPublisher
 {
     private readonly mEndpoint: TSubscriptionEndpoints;
     private readonly mErrorHandlers: TZMQPublisherErrorHandlers;
-    private readonly mMessageCaches: Map<string, ExpiryMap<number, TPublishMessage>> = new Map();
-    private readonly mPublishQueue: Queue<TPublishMessage> = new Queue();
-    private readonly mTopicDetails: Map<string, TTopicDetails> = new Map();
     private mHeartbeatTimeout: NodeJS.Timeout | undefined;
+    private readonly mMessageCaches: Map<string, ExpiryMap<number, TPublishMessage>> = new Map();
     private mPublisher!: zmq.Publisher;
+    private readonly mPublishQueue: Queue<TPublishMessage> = new Queue();
     private mResponse!: ZMQResponse;
     private mSafeToPublish: boolean = true;
+    private readonly mTopicDetails: Map<string, TTopicDetails> = new Map();
 
     public constructor(aEndpoint: TSubscriptionEndpoints, aErrorHandlers: TZMQPublisherErrorHandlers)
     {
@@ -121,6 +129,22 @@ export class ZMQPublisher
         return Promise.resolve(JSONBigInt.Stringify(lRequestedMessages));
     }
 
+    private HandleZMQPublishError(aError: any, lFormattedMessage: string[]): void
+    {
+        if (aError && aError.code && aError.code === "EAGAIN")
+        {
+            this.mErrorHandlers.HighWaterMarkWarning({
+                Topic: lFormattedMessage[EPublishMessage.Topic],
+                Nonce: Number(lFormattedMessage[EPublishMessage.Nonce]),
+                Message: lFormattedMessage[EPublishMessage.Message],
+            });
+        }
+        else
+        {
+            throw aError;
+        }
+    }
+
     private async ProcessPublish(): Promise<void>
     {
         const lNextSend: TPublishMessage | undefined = this.mPublishQueue.peek();
@@ -132,7 +156,14 @@ export class ZMQPublisher
 
             this.mPublishQueue.dequeue();
             this.mSafeToPublish = false;
-            await this.mPublisher.send(lFormattedMessage);
+            try
+            {
+                await this.mPublisher.send(lFormattedMessage);
+            }
+            catch (aError)
+            {
+                this.HandleZMQPublishError(aError, lFormattedMessage);
+            }
             this.mSafeToPublish = true;
 
             this.ProcessPublish();
@@ -159,6 +190,7 @@ export class ZMQPublisher
     {
         this.mResponse = new ZMQResponse(this.mEndpoint.RequestAddress, this.HandleRequest);
         this.mPublisher = new zmq.Publisher;
+        this.mPublisher.noDrop = true;
         await this.mPublisher.bind(this.mEndpoint.PublisherAddress);
 
         this.CheckHeartbeats();

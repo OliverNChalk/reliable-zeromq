@@ -1,8 +1,8 @@
 export default class Config
 {
     // Consider making parameters immutable once first used, to avoid issues like different cache expiries
-    private static mMaximumLatency: number = 5000;
-    private static mHeartbeatInterval: number = 1000;
+    private static mMaximumLatency: number = 2000;
+    private static mHeartbeatInterval: number = 100;
 
     public static get MaximumLatency(): number
     {

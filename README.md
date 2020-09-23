@@ -3,6 +3,7 @@
 [![codecov](https://codecov.io/gh/OliverNChalk/reliable-zeromq/branch/master/graph/badge.svg)](https://codecov.io/gh/OliverNChalk/reliable-zeromq)
 
 ### TODO:
+ - Test what happens when two sockets bind to the same endpoint
  - Register ErrorHandler for HWM
  - Performance Testing
  - Migrate to ESLint

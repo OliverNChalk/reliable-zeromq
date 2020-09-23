@@ -7,8 +7,8 @@ import Config from "../../Src/Config";
 test("Full Test", (t: ExecutionContext<any>) =>
 {
     // Check defaults
-    t.is(Config.MaximumLatency, 5000);
-    t.is(Config.HeartBeatInterval, 1000);
+    t.is(Config.MaximumLatency, 2000);
+    t.is(Config.HeartBeatInterval, 100);
 
     Config.SetGlobalConfig(2000);
     t.is(Config.MaximumLatency, 2000);

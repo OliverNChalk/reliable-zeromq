@@ -1,55 +1,66 @@
-/* tslint:disable no-console */
+/* tslint:disable no-console tslint:disable no-string-literal */
+import Config from "../../Src/Config";
+import { TCacheError } from "../../Src/Errors";
 import { Delay } from "../../Src/Utils/Delay";
-import { ZMQPublisher } from "../../Src/ZMQPublisher";
-import { ZMQSubscriber } from "../../Src/ZMQSubscriber/ZMQSubscriber";
-import { DUMMY_ENDPOINTS } from "../Helpers/DummyEndpoints.data";
+import { THighWaterMarkWarning, ZMQPublisher } from "../../Src/ZMQPublisher";
+import { TDroppedMessageWarning, TSubscriptionEndpoints, ZMQSubscriber } from "../../Src/ZMQSubscriber/ZMQSubscriber";
+import TestEndpoint from "../Helpers/TestEndpoint";
 
-async function RunHWMTest(): Promise<void>
+async function RunHWMDemo(aHighWaterMark: number): Promise<void>
 {
+    console.log(`Running with HWM of ${aHighWaterMark}`);
+    const lEndpoint: TSubscriptionEndpoints =
+    {
+        PublisherAddress: TestEndpoint.GetEndpoint("HWMPublisherAddress"),
+        RequestAddress: TestEndpoint.GetEndpoint("HWMRequestAddress"),
+    };
+
+    const lPubErrors: any[] = [];
+    const lSubErrors: any[] = [];
     const lStatusUpdatePublisher: ZMQPublisher = new ZMQPublisher(
+        lEndpoint,
         {
-            PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,
-            RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
-        },
-        {
-            CacheError: (): void => {},
+            CacheError: (aError: TCacheError): void => { lPubErrors.push(aError); },
+            HighWaterMarkWarning: (aWarning: THighWaterMarkWarning): void => { lPubErrors.push(aWarning); },
         },
     );
     await lStatusUpdatePublisher.Open();
-    const lSubscriber: ZMQSubscriber = new ZMQSubscriber({ CacheError: (): void => {} });
+    lStatusUpdatePublisher["mPublisher"].sendHighWaterMark = aHighWaterMark;
+    await lStatusUpdatePublisher["mPublisher"].bind(lEndpoint.PublisherAddress);
+
+    const lSubscriber: ZMQSubscriber = new ZMQSubscriber(
+        {
+            CacheError: (aError: TCacheError): void => { lSubErrors.push(aError); },
+            DroppedMessageWarn: (aWarning: TDroppedMessageWarning): void => { lSubErrors.push(aWarning); },
+        },
+    );
 
     const lSentMap: Map<string, boolean> = new Map();
     const lReceivedMap: Map<string, boolean> = new Map();
-    let lReceivedCount: number = 0;
 
-    const lSubId: number = lSubscriber.Subscribe(DUMMY_ENDPOINTS.STATUS_UPDATES, "HWM_TEST", (aMessage: string): void =>
-    {
-        ++lReceivedCount;
-        lReceivedMap.set(aMessage, true);
-
-        if (lReceivedCount === 2_000)
+    lSubscriber.Subscribe(
+        lEndpoint,
+        "HWM_TEST",
+        (aMessage: string): void =>
         {
-            console.log("Finished receiving at:", Date.now());
-        }
-    });
-
-    console.log("SubscriptionId:", lSubId);
+            lReceivedMap.set(aMessage, true);
+        },
+    );
 
     await Delay(100);
-
-    console.log("Started sending at:", Date.now());
-    for (let i: number = 1; i <= 2_000; ++i)
+    for (let i: number = 1; i <= 100; ++i)
     {
         const lMessage: string = `TEST_${i}`;
         lStatusUpdatePublisher.Publish("HWM_TEST", lMessage);
         lSentMap.set(lMessage, true);
-
-        // console.log(i, "sent: ", lMessage);
     }
-    await Delay(500);
+    await Delay(2 * Config.HeartBeatInterval);
 
     lSubscriber.Close();
     lStatusUpdatePublisher.Close();
+
+    console.log(`PubErrors: ${lPubErrors.length}`);
+    console.log(`SubErrors: ${lSubErrors.length}`);
 
     // Find missing values
     lSentMap.forEach((aValue: boolean, aMessageKey: string) =>
@@ -61,4 +72,12 @@ async function RunHWMTest(): Promise<void>
     });
 }
 
-RunHWMTest();
+async function RunAll(): Promise<void>
+{
+    await RunHWMDemo(1);
+    await RunHWMDemo(2);
+    await RunHWMDemo(5);
+    await RunHWMDemo(10);
+}
+
+RunAll();

@@ -33,9 +33,16 @@ export type TSubscriptionEndpoints =
     RequestAddress: string;
 };
 
+export type TDroppedMessageWarning =
+{
+    Topic: string;
+    Nonces: number[];
+};
+
 export type TZMQSubscriberErrorHandlers =
 {
     CacheError: (aError: TCacheError) => void;
+    DroppedMessageWarn: (aError: TDroppedMessageWarning) => void;
 };
 
 export class ZMQSubscriber
@@ -107,6 +114,16 @@ export class ZMQSubscriber
         );
     }
 
+    private EmitMissedMessageError(aTopic: string, aNonces: number[]): void
+    {
+        this.mErrorHandlers.DroppedMessageWarn(
+            {
+                Topic: aTopic,
+                Nonces: aNonces,
+            },
+        );
+    }
+
     private InitTopicEntry(
         aEndpoint: TSubscriptionEndpoints,
         aTopic: string,
@@ -150,6 +167,7 @@ export class ZMQSubscriber
     ): Promise<void>
     {
         // TODO: Check for possibility that a messages gets played twice, I think I handled this via nonce...
+        this.EmitMissedMessageError(aTopic, aMessageIds);
         const lFormattedRequest: TRecoveryRequest = [aTopic, ...aMessageIds];   // PERF: Array manipulation
 
         const lEndpointEntry: TEndpointEntry = this.mEndpoints.get(aEndpoint.PublisherAddress)!;

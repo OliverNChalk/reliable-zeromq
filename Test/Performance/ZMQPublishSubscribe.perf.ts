@@ -1,8 +1,8 @@
 import { PerfTest } from "perf-test";
 import { TCacheError } from "../../Src/Errors";
 import { Delay } from "../../Src/Utils/Delay";
-import { ZMQPublisher } from "../../Src/ZMQPublisher";
-import { ZMQSubscriber } from "../../Src/ZMQSubscriber/ZMQSubscriber";
+import { THighWaterMarkWarning, ZMQPublisher } from "../../Src/ZMQPublisher";
+import { TDroppedMessageWarning, ZMQSubscriber } from "../../Src/ZMQSubscriber/ZMQSubscriber";
 import TestEndpoint from "../Helpers/TestEndpoint";
 
 const lPublishEndpoint: string = TestEndpoint.GetEndpoint("PublishPerformance");
@@ -14,11 +14,13 @@ const lPublisher: ZMQPublisher = new ZMQPublisher(
     },
     {
         CacheError: (aError: TCacheError): void => { throw aError; },
+        HighWaterMarkWarning: (aWarning: THighWaterMarkWarning): void => { throw aWarning; },
     },
 );
 const lSubscriber: ZMQSubscriber = new ZMQSubscriber(
     {
         CacheError: (aError: TCacheError): void => { throw aError; },
+        DroppedMessageWarn: (aError: TDroppedMessageWarning): void => { throw aError; },
     },
 );
 
