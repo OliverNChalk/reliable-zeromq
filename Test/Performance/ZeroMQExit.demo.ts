@@ -1,12 +1,17 @@
 /* tslint:disable no-console tslint:disable no-string-literal */
+const logRunning: any = require("why-is-node-running");
 import Config from "../../Src/Config";
 import { TCacheError } from "../../Src/Errors";
 import { Delay } from "../../Src/Utils/Delay";
 import { THighWaterMarkWarning, ZMQPublisher } from "../../Src/ZMQPublisher";
+import { TRequestResponse, ZMQRequest } from "../../Src/ZMQRequest";
+import { ZMQResponse } from "../../Src/ZMQResponse";
 import { TDroppedMessageWarning, TSubscriptionEndpoints, ZMQSubscriber } from "../../Src/ZMQSubscriber/ZMQSubscriber";
 import TestEndpoint from "../Helpers/TestEndpoint";
 
-async function RunHWMDemo(aHighWaterMark: number): Promise<void>
+let lStartExitTime: number;
+
+async function RunSubDemo(aHighWaterMark: number): Promise<void>
 {
     console.log(`Running with HWM of ${aHighWaterMark}`);
     const lEndpoint: TSubscriptionEndpoints =
@@ -48,16 +53,13 @@ async function RunHWMDemo(aHighWaterMark: number): Promise<void>
     );
 
     await Delay(100);
-    for (let i: number = 1; i <= 100; ++i)
+    for (let i: number = 1; i <= 1_000; ++i)
     {
         const lMessage: string = `TEST_${i}`;
         lStatusUpdatePublisher.Publish("HWM_TEST", lMessage);
         lSentMap.set(lMessage, true);
     }
     await Delay(2 * Config.HeartBeatInterval);
-
-    lSubscriber.Close();
-    lStatusUpdatePublisher.Close();
 
     console.log(`PubErrors: ${lPubErrors.length}`);
     console.log(`SubErrors: ${lSubErrors.length}`);
@@ -70,38 +72,51 @@ async function RunHWMDemo(aHighWaterMark: number): Promise<void>
             console.log(aMessageKey, "not received!");
         }
     });
+
+    lSubscriber.Close();
+
+    lStatusUpdatePublisher.Publish("HWM_TEST", "LATE_PUBLISH");
+    await Delay(100);
+
+    lStatusUpdatePublisher.Close();
+    lStartExitTime = Date.now();
 }
 
-async function RunAll(): Promise<void>
+let lCount: number = 0;
+
+async function LogActive(): Promise<void>
 {
-    await RunHWMDemo(1);
-    await RunHWMDemo(2);
-    await RunHWMDemo(5);
-    await RunHWMDemo(10);
-    await RunHWMDemo(1);
-    await RunHWMDemo(2);
-    await RunHWMDemo(5);
-    await RunHWMDemo(10);
-    await RunHWMDemo(1);
-    await RunHWMDemo(2);
-    await RunHWMDemo(5);
-    await RunHWMDemo(10);
-    await RunHWMDemo(1);
-    await RunHWMDemo(2);
-    await RunHWMDemo(5);
-    await RunHWMDemo(10);
-    await RunHWMDemo(1);
-    await RunHWMDemo(2);
-    await RunHWMDemo(5);
-    await RunHWMDemo(10);
-    await RunHWMDemo(1);
-    await RunHWMDemo(2);
-    await RunHWMDemo(5);
-    await RunHWMDemo(10);
-    await RunHWMDemo(1);
-    await RunHWMDemo(2);
-    await RunHWMDemo(5);
-    await RunHWMDemo(10);
+    while (lCount < 20)
+    {
+        console.log("Logging items keeping NodeJS alive", lCount++);
+        logRunning();
+        await Delay(500);
+    }
 }
 
-RunAll();
+async function RunReqDemo(): Promise<void>
+{
+    const lEndpoint: string = TestEndpoint.GetEndpoint("ResponseExit");
+
+    const lResponder: ZMQResponse = new ZMQResponse(
+        lEndpoint,
+        (): Promise<string> => Promise.resolve("test"),
+    );
+    const lRequester: ZMQRequest = new ZMQRequest(
+        lEndpoint,
+    );
+
+    const lResult: TRequestResponse = await lRequester.Send("test1");
+    console.log(lResult);
+
+    await Delay(200);
+
+    lResponder.Close();
+    lRequester.Close();
+    lStartExitTime = Date.now();
+}
+
+RunReqDemo();
+LogActive();
+
+process.on("exit", () => console.log(`NodeJS took ${Date.now() - lStartExitTime}ms to exit`));

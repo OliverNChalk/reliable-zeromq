@@ -11,9 +11,8 @@ type TExpiryEntry<K> =
 export default class ExpiryMap<K, V> extends Map<K, V>
 {
     private readonly mExpiryMS: number;
-    private mNextExpiry: NodeJS.Timeout | undefined;
-
     private mExpiryQueue: Queue<TExpiryEntry<K>> = new Queue<TExpiryEntry<K>>();
+    private mNextExpiry: NodeJS.Timeout | undefined;
 
     public constructor(aExpiryMS: number, aEntries?: Iterable<readonly [K, V]>)
     {
@@ -58,6 +57,18 @@ export default class ExpiryMap<K, V> extends Map<K, V>
 
             this.mNextExpiry = setTimeout(this.PruneStale, lNextExpiry);    // setTimeout has its own range check
         }
+    }
+
+    public clear(): void
+    {
+        super.clear();
+
+        this.mExpiryQueue.clear();
+        if (this.mNextExpiry)
+        {
+            clearTimeout(this.mNextExpiry);
+        }
+
     }
 
     public set(key: K, value: V): this
