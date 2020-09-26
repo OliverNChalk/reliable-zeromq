@@ -181,6 +181,11 @@ export class ZMQPublisher
         this.mResponse.Close();
         clearTimeout(this.mHeartbeatTimeout!);
 
+        this.mMessageCaches.forEach((aCache: ExpiryMap<number, TPublishMessage>) =>
+        {
+            aCache.clear();
+        });
+
         this.mPublisher.linger = 0;
         this.mPublisher.close();
         this.mPublisher = undefined!;

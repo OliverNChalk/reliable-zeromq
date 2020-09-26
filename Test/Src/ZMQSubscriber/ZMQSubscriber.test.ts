@@ -319,7 +319,7 @@ test.serial("Start, Subscribe, Recover, Close", async(t: ExecutionContext<TTestC
             lSubscriber.Unsubscribe(lTopic.subId);
         }
 
-        t.is(lSubscriber["mEndpoints"].get(aEndpoint)!.TopicEntries.size, 0);
+        t.is(lSubscriber["mEndpoints"].get(aEndpoint), undefined);
     }
 });
 

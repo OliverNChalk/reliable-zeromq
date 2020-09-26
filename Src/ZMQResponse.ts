@@ -18,6 +18,11 @@ export class ZMQResponse
         this.Open();
     }
 
+    public get Endpoint(): string
+    {
+        return this.mEndpoint;
+    }
+
     private Open(): void
     {
         this.mRouter = new zmq.Router();
@@ -26,11 +31,6 @@ export class ZMQResponse
             {
                 this.ReceiveLoop();
             });
-    }
-
-    public get Endpoint(): string
-    {
-        return this.mEndpoint;
     }
 
     private async ReceiveLoop(): Promise<void>
@@ -67,6 +67,8 @@ export class ZMQResponse
 
     public Close(): void
     {
+        this.mCachedRequests.clear();
+
         this.mRouter.linger = 0;
         this.mRouter.close();
         this.mRouter = undefined!;

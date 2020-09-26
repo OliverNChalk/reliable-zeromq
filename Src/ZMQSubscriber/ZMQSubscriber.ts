@@ -62,17 +62,11 @@ export class ZMQSubscriber
         return ++this.mTokenId;
     }
 
-    private static PruneTopicIfEmpty(
-        lTopicEntry: TopicEntry,
-        lEndpoint: TEndpointEntry,
-        lInternalSubscription: TInternalSubscription,
-    ): void
+    private static CloseEndpoint(lEndpoint: TEndpointEntry): void
     {
-        if (lTopicEntry.Callbacks.size === 0)
-        {
-            lEndpoint.Subscriber.unsubscribe(lInternalSubscription.Topic);
-            lEndpoint.TopicEntries.delete(lInternalSubscription.Topic);
-        }
+        lEndpoint.Subscriber.linger = 0;
+        lEndpoint.Subscriber.close();
+        lEndpoint.Requester.Close();
     }
 
     private async AddSubscriptionEndpoint(aEndpoint: TSubscriptionEndpoints): Promise<void>
@@ -89,7 +83,11 @@ export class ZMQSubscriber
 
         for await (const aBuffers of lSubSocket)
         {
-            this.ParseNewMessage(aBuffers, aEndpoint);
+            if (this.mEndpoints.size > 0)
+            {
+                this.ParseNewMessage(aBuffers, aEndpoint);
+            }
+            // NOTE: It is possible to receive messages after closing a socket with zero linger. I assume this is because socket closure is async
         }
     }
 
@@ -160,6 +158,24 @@ export class ZMQSubscriber
         }
     }
 
+    private PruneIfEmpty(aInternalSubscription: TInternalSubscription): void
+    {
+        const lEndpoint: TEndpointEntry = this.mEndpoints.get(aInternalSubscription.Endpoint)!;
+        const lTopicEntry: TopicEntry = lEndpoint.TopicEntries.get(aInternalSubscription.Topic)!;
+
+        if (lTopicEntry.Callbacks.size === 0)
+        {
+            lEndpoint.Subscriber.unsubscribe(aInternalSubscription.Topic);
+            lEndpoint.TopicEntries.delete(aInternalSubscription.Topic);
+
+            if (lEndpoint.TopicEntries.size === 0)
+            {
+                ZMQSubscriber.CloseEndpoint(lEndpoint);
+                this.mEndpoints.delete(aInternalSubscription.Endpoint);
+            }
+        }
+    }
+
     private async RecoverMissingMessages(
         aEndpoint: TSubscriptionEndpoints,
         aTopic: string,
@@ -204,9 +220,7 @@ export class ZMQSubscriber
     {
         this.mEndpoints.forEach((aEndpoint: TEndpointEntry): void =>
         {
-            aEndpoint.Subscriber.linger = 0;
-            aEndpoint.Subscriber.close();
-            aEndpoint.Requester.Close();
+            ZMQSubscriber.CloseEndpoint(aEndpoint);
         });
 
         this.mEndpoints.clear();
@@ -253,7 +267,7 @@ export class ZMQSubscriber
             lTopicEntry.Callbacks.delete(aSubscriptionId);
             this.mSubscriptions.delete(aSubscriptionId);
 
-            ZMQSubscriber.PruneTopicIfEmpty(lTopicEntry, lEndpoint, lInternalSubscription);
+            this.PruneIfEmpty(lInternalSubscription);
         }
     }
 }

@@ -78,6 +78,30 @@ async function RunAll(): Promise<void>
     await RunHWMDemo(2);
     await RunHWMDemo(5);
     await RunHWMDemo(10);
+    await RunHWMDemo(1);
+    await RunHWMDemo(2);
+    await RunHWMDemo(5);
+    await RunHWMDemo(10);
+    await RunHWMDemo(1);
+    await RunHWMDemo(2);
+    await RunHWMDemo(5);
+    await RunHWMDemo(10);
+    await RunHWMDemo(1);
+    await RunHWMDemo(2);
+    await RunHWMDemo(5);
+    await RunHWMDemo(10);
+    await RunHWMDemo(1);
+    await RunHWMDemo(2);
+    await RunHWMDemo(5);
+    await RunHWMDemo(10);
+    await RunHWMDemo(1);
+    await RunHWMDemo(2);
+    await RunHWMDemo(5);
+    await RunHWMDemo(10);
+    await RunHWMDemo(1);
+    await RunHWMDemo(2);
+    await RunHWMDemo(5);
+    await RunHWMDemo(10);
 }
 
 RunAll();

@@ -48,11 +48,7 @@ test.beforeEach((t: ExecutionContext<TTestContext>): void =>
                 ],
             },
         ],
-        Endpoints: {
-            PublisherAddress: "ipc:///tmp/zeromq/status_updates/publisher.ipc",
-            RequestAddress: "ipc:///tmp/zeromq/status_updates/request.ipc",
-        },
-
+        Endpoints: DUMMY_ENDPOINTS.STATUS_UPDATES,
     };
 });
 
