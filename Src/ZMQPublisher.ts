@@ -58,7 +58,7 @@ export class ZMQPublisher
     private readonly mPublishQueue: Queue<TPublishMessage> = new Queue();
     private mResponse!: ZMQResponse;
     private mSafeToPublish: boolean = true;
-    private readonly mTopicDetails: Map<string, TTopicDetails> = new Map();
+    private readonly mTopicDetails: Map<string, TTopicDetails> = new Map(); // TODO: This is a memory leak because we don't clean up unused topics
 
     public constructor(aEndpoint: TSubscriptionEndpoints, aErrorHandlers: TZMQPublisherErrorHandlers)
     {
@@ -193,7 +193,7 @@ export class ZMQPublisher
 
     public async Open(): Promise<void>
     {
-        this.mResponse = new ZMQResponse(this.mEndpoint.RequestAddress, this.HandleRequest);
+        this.mResponse = new ZMQResponse(this.mEndpoint.RequestAddress, this.HandleRequest, { CacheError: undefined! });
         this.mPublisher = new zmq.Publisher;
         this.mPublisher.noDrop = true;
         await this.mPublisher.bind(this.mEndpoint.PublisherAddress);

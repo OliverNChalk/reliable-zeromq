@@ -9,13 +9,8 @@
  - Migrate to ESLint
  - Test multiple subscribers to one publisher (networked)
  - Separate Ack + Response in ZMQResponse to distinguish between slow peers and slow endpoints?
- 
-### Ideas:
- - Mock zmq functionality
-   - No port conflicts
-   - No network issues
-   - In-memory messaging
+ - Detect expired requests in ZMQResponse, currently it will attempt to process that request again.
 
 ### Known Issues:
  - JSONBigInt parses any string it can to bigint, e.g. "20n" to 20n, instead of its correct value of "20n"
- - ExpiryMap does not reset expiry when `set()` overwrites an existing value. Would require a LinkedListDictionary.
+ - ExpiryMap does not reset expiry when `set()` overwrites an existing value. Could be done by storing a timestamp in the map of the last edit. Then when a timestamp expires out of the queue, we first check if the map hasn't been edited since and if it has we can do something (note, simply pushing an expiry to the back of the queue would result in it expiring late).

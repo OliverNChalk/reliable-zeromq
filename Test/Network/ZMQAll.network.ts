@@ -56,22 +56,24 @@ test.serial("ZMQRequest: Start, Send, Receive, Close", async(t: ExecutionContext
         data: undefined!,
     };
     const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, async(aMsg: string): Promise<string> =>
-    {
-        let lResult: string;
-        try
         {
-            lResult = JSONBigInt.Parse(aMsg);
-        }
-        catch (e)
-        {
-            lResult = aMsg as string;
-        }
+            let lResult: string;
+            try
+            {
+                lResult = JSONBigInt.Parse(aMsg);
+            }
+            catch (e)
+            {
+                lResult = aMsg as string;
+            }
 
-        return JSONBigInt.Stringify({
-            code: "success",
-            data: lResult,
-        });
-    });
+            return JSONBigInt.Stringify({
+                code: "success",
+                data: lResult,
+            });
+        },
+        { CacheError: undefined! },
+    );
 
     const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
 
@@ -113,7 +115,11 @@ test.serial("ZMQResponse: Start, Receive, Close", async(t: ExecutionContext<TTes
 
     t.context.ResponderEndpoint = "tcp://127.0.0.1:4276";
     const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
-    const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, lResponderRouter);
+    const lResponse: ZMQResponse = new ZMQResponse(
+        t.context.ResponderEndpoint,
+        lResponderRouter,
+        { CacheError: undefined! },
+    );
 
     const lFirstResponse: TRequestResponse = await lRequest.Send("hello");
 
@@ -152,7 +158,12 @@ test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestConte
             HighWaterMarkWarning: undefined!,
         },
     );
-    const lSubscriber: ZMQSubscriber = new ZMQSubscriber({ CacheError: undefined!, DroppedMessageWarn: undefined! });
+    const lSubscriber: ZMQSubscriber = new ZMQSubscriber(
+        {
+            CacheError: (): void => undefined!,
+            DroppedMessageWarn: (): void => console.warn as any,
+        },
+    );
 
     await lStatusUpdatePublisher.Open();
     await lWeatherUpdatePublisher.Open();

@@ -3,6 +3,7 @@ import uniqid from "uniqid";
 import * as zmq from "zeromq";
 import Config from "./Config";
 import { CancellableDelay, ICancellableDelay } from "./Utils/Delay";
+import { GenerateMessage } from "./Utils/GenerateMessage";
 
 const RESPONSE_TIMEOUT: number = 500;   // 500ms   (this includes computation time on the wrapped service)
 
@@ -10,10 +11,11 @@ type TResolve = (aResult: TRequestResponse) => void;
 
 type TSendRequest =
 {
-    Request: TRequestBody;
+    Request: TRequestBody | TRegistrationBody;
     Resolve: () => void;
 };
 
+type TRegistrationBody = [requesterId: string, nonce: "-1"];
 type TRequestBody = [requesterId: string, nonce: string, message: string];
 export enum ERequestBody
 {
@@ -30,13 +32,19 @@ export type TRequestTimeOut =
     Request: string[];
 };
 
+type TPendingRequest =
+{
+    Resolve: TResolve;
+    Acknowledged: boolean;
+};
+
 export class ZMQRequest
 {
     private mDealer!: zmq.Dealer;
     private readonly mEndpoint: string;
     private readonly mOurUniqueId: string;
     private mPendingDelays: Map<number, ICancellableDelay> = new Map();
-    private mPendingRequests: Map<number, TResolve> = new Map();
+    private mPendingRequests: Map<number, TPendingRequest> = new Map();
     private mRequestNonce: number = 0;
     private readonly mRoundTripMax: number;
 
@@ -57,12 +65,24 @@ export class ZMQRequest
         return this.mEndpoint;
     }
 
+    private AcknowledgeResponse(aNonce: Buffer): void
+    {
+        const lRequest: TRequestBody =
+        [
+            this.mOurUniqueId,
+            aNonce.toString(),
+            GenerateMessage.Ack(this.mOurUniqueId, aNonce),
+        ];
+        this.mDealer.send(lRequest);    // TODO: This bypasses our internal queueing system, which incidentally needs review
+    }
+
     private AssertRequestProcessed(aRequestId: number, aRequest: string[]): void
     {
-        const lResolver: TResolve | undefined = this.mPendingRequests.get(aRequestId);  // TODO: Review why this is called assert when it doesnt assert
-        if (lResolver)
+        const lRequest: TPendingRequest | undefined = this.mPendingRequests.get(aRequestId);
+        if (this.RequestNotAcknowledged(aRequestId))
         {
-            lResolver(
+            // Return a TRequestTimeout object
+            lRequest!.Resolve(
                 {
                     RequestId: aRequestId,
                     Request: aRequest,
@@ -76,7 +96,7 @@ export class ZMQRequest
         const lMaximumSendTime: number = Date.now() + this.mRoundTripMax;
         await this.WaitResponseTimeout(aRequestId);
 
-        while (this.mPendingRequests.has(aRequestId) && Date.now() < lMaximumSendTime)
+        while (this.RequestNotAcknowledged(aRequestId) && Date.now() < lMaximumSendTime)
         {
             await this.SendMessage(aRequest);
             await this.WaitResponseTimeout(aRequestId);
@@ -90,6 +110,9 @@ export class ZMQRequest
         this.mDealer = new zmq.Dealer;
         this.mDealer.connect(this.mEndpoint);
         this.ResponseHandler();
+
+        this.mPendingRequests.set(-1, { Resolve: (): void => console.log("REGISTERED"), Acknowledged: false });
+        this.SendMessage([this.mOurUniqueId, "-1"]);
     }
 
     private async ProcessSend(): Promise<void>
@@ -105,23 +128,37 @@ export class ZMQRequest
         }
     }
 
+    private RequestNotAcknowledged(aRequestId: number): boolean
+    {
+        return  this.mPendingRequests.has(aRequestId)
+            && !this.mPendingRequests.get(aRequestId)!.Acknowledged;
+    }
+
     private async ResponseHandler(): Promise<void>
     {
         for await (const [nonce, msg] of this.mDealer)
         {
             // Forward requests to the registered handler
             const lRequestId: number = Number(nonce.toString());
-            const lMessageCaller: TResolve | undefined = this.mPendingRequests.get(lRequestId);
+            const lPendingRequest: TPendingRequest | undefined = this.mPendingRequests.get(lRequestId);
 
-            if (lMessageCaller)
+            if (lPendingRequest)
             {
-                lMessageCaller(msg.toString());
-                this.mPendingRequests.delete(lRequestId);
+                if (msg)
+                {
+                    lPendingRequest.Resolve(msg.toString());
+                    this.mPendingRequests.delete(lRequestId);
+                }
+                else
+                {
+                    lPendingRequest.Acknowledged = true;
+                    this.AcknowledgeResponse(nonce);
+                }
             }
         }
     }
 
-    private SendMessage(aRequest: TRequestBody): Promise<void>
+    private SendMessage(aRequest: TRequestBody | TRegistrationBody): Promise<void>
     {
         let lResolver: () => void;
 
@@ -174,13 +211,19 @@ export class ZMQRequest
             lRequestId.toString(),
             aData,
         ];
-        await this.SendMessage(lRequest);   // Can potentially move this inside of ManageRequest loop
 
+        await this.SendMessage(lRequest);   // Can potentially move this inside of ManageRequest loop
         this.ManageRequest(lRequestId, lRequest);
 
         return new Promise<TRequestResponse>((aResolve: TResolve): void =>
         {
-            this.mPendingRequests.set(lRequestId, aResolve);
+            this.mPendingRequests.set(
+                lRequestId,
+                {
+                    Resolve: aResolve,
+                    Acknowledged: false,
+                },
+            );
         });
     }
 }

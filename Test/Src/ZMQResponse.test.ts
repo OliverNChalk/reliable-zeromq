@@ -5,6 +5,8 @@ import * as sinon from "sinon";
 import Sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
+import Config from "../../Src/Config";
+import { PUBLISHER_CACHE_EXPIRED } from "../../Src/ZMQPublisher";
 import { ZMQResponse } from "../../Src/ZMQResponse";
 import { YieldToEventLoop } from "../Helpers/AsyncTools";
 
@@ -63,6 +65,7 @@ test.afterEach((t: ExecutionContext<TTestContext>): void =>
 
 test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
+    const clock: sinon.SinonFakeTimers = sinon.useFakeTimers();
     let lResponder = async(aMsg: string): Promise<string> => "world";
     const lResponderRouter = (aMsg: string): Promise<string> =>
     {
@@ -71,7 +74,11 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
 
     const lSendMock: Sinon.SinonStub = t.context.RouterMock.mock("send", Promise.resolve());
     const lBindMock: Sinon.SinonStub = t.context.RouterMock.mock("bind", Promise.resolve());
-    const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, lResponderRouter);
+    const lResponse: ZMQResponse = new ZMQResponse(
+        t.context.ResponderEndpoint,
+        lResponderRouter,
+        { CacheError: undefined! },
+    );
     await YieldToEventLoop();   // Listening to asyncIterator occurs asynchronously, so we need to yield
 
     t.is(lResponse.Endpoint, t.context.ResponderEndpoint);
@@ -83,24 +90,25 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
         "0",
         "hello",
     ]);
-
     await YieldToEventLoop();
+
     t.is(lSendMock.callCount, 1);
     t.is(lResponse["mCachedRequests"].size, 1);
     t.deepEqual(lSendMock.getCall(0).args[0], ["sender", "0", "world"]);
 
-    lResponder = async(aMsg: string): Promise<string> => aMsg + " response";
+    let lCallCount: number = 0;
+    lResponder = async(aMsg: string): Promise<string> => `${aMsg} response ${lCallCount++}`;
     t.context.SendToReceiver([
         "sender",
         "unique_sender_id",
         "1",
-        "this should not throw",
+        "testMessage",
     ]);
     await YieldToEventLoop();
 
     t.is(lSendMock.callCount, 2);
     t.is(lResponse["mCachedRequests"].size, 2);
-    t.deepEqual(lSendMock.getCall(1).args[0], ["sender", "1", "this should not throw response"]);
+    t.deepEqual(lSendMock.getCall(1).args[0], ["sender", "1", "testMessage 0"]); // Return the response
 
     t.context.SendToReceiver([
         "sender",
@@ -112,7 +120,9 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
 
     t.is(lSendMock.callCount, 3);
     t.is(lResponse["mCachedRequests"].size, 2);
-    t.deepEqual(lSendMock.getCall(2).args[0], ["sender", "1", "this should not throw response"]);
+    t.deepEqual(lSendMock.getCall(2).args[0], ["sender", "1", "testMessage 0"]); // Hit the cache
+
+    clock.tick(3 * Config.MaximumLatency);
 
     t.context.SendToReceiver([
         "sender",
@@ -124,7 +134,7 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
 
     t.is(lSendMock.callCount, 4);
     t.is(lResponse["mCachedRequests"].size, 2);
-    t.deepEqual(lSendMock.getCall(3).args[0], ["sender", "1", "this should not throw response"]);
+    t.deepEqual(lSendMock.getCall(3).args[0], [PUBLISHER_CACHE_EXPIRED]); // Error because cache expired
 
     lResponse.Close();
 });

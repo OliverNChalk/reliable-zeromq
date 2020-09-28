@@ -6,7 +6,7 @@ import TestEndpoint from "../Helpers/TestEndpoint";
 
 const lTestEndpoint: string = TestEndpoint.GetEndpoint("RequestResponsePerformance");
 const lRequester: ZMQRequest = new ZMQRequest(lTestEndpoint);
-const lResponder: ZMQResponse = new ZMQResponse(lTestEndpoint, Responder);
+const lResponder: ZMQResponse = new ZMQResponse(lTestEndpoint, Responder, { CacheError: undefined! });
 
 function Responder(): Promise<string>
 {
