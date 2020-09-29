@@ -3,6 +3,7 @@ import uniqid from "uniqid";
 import * as zmq from "zeromq";
 import Config from "./Config";
 import { CancellableDelay, ICancellableDelay } from "./Utils/Delay";
+import { REGISTRATION_SUCCESS } from "./ZMQResponse";
 
 const RESPONSE_TIMEOUT: number = 500;   // 500ms   (this includes computation time on the wrapped service)
 
@@ -10,9 +11,11 @@ type TResolve = (aResult: TRequestResponse) => void;
 
 type TSendRequest =
 {
-    Request: TRequestBody;
+    Request: TRequestUnion;
     Resolve: () => void;
 };
+
+type TRequestUnion = TRequestBody | [requesterId: string, nonce: "-1"];
 
 type TRequestBody = [requesterId: string, nonce: string, message: string];
 export enum ERequestBody
@@ -27,7 +30,7 @@ export type TRequestResponse = string | TRequestTimeOut;
 export type TRequestTimeOut =
 {
     RequestId: number;
-    Request: string[];
+    RequestBody: TRequestUnion;
 };
 
 export class ZMQRequest
@@ -48,8 +51,6 @@ export class ZMQRequest
         this.mRoundTripMax = Config.MaximumLatency * 2; // Send + response latency
         this.mEndpoint = aReceiverEndpoint;
         this.mOurUniqueId = uniqid();
-
-        this.Open();
     }
 
     public get Endpoint(): string
@@ -57,7 +58,7 @@ export class ZMQRequest
         return this.mEndpoint;
     }
 
-    private AssertRequestProcessed(aRequestId: number, aRequest: string[]): void
+    private AssertRequestProcessed(aRequestId: number, aRequest: TRequestUnion): void
     {
         const lResolver: TResolve | undefined = this.mPendingRequests.get(aRequestId);  // TODO: Review why this is called assert when it doesnt assert
         if (lResolver)
@@ -65,13 +66,18 @@ export class ZMQRequest
             lResolver(
                 {
                     RequestId: aRequestId,
-                    Request: aRequest,
+                    RequestBody: aRequest,
                 },
             );
         }
     }
 
-    private async ManageRequest(aRequestId: number, aRequest: TRequestBody): Promise<void>
+    private IsRegistrationSuccessful(aResponse: string): boolean
+    {
+        return aResponse === REGISTRATION_SUCCESS;
+    }
+
+    private async ManageRequest(aRequestId: number, aRequest: TRequestUnion): Promise<void>
     {
         const lMaximumSendTime: number = Date.now() + this.mRoundTripMax;
         await this.WaitResponseTimeout(aRequestId);
@@ -85,13 +91,6 @@ export class ZMQRequest
         this.AssertRequestProcessed(aRequestId, aRequest);
     }
 
-    private Open(): void
-    {
-        this.mDealer = new zmq.Dealer;
-        this.mDealer.connect(this.mEndpoint);
-        this.ResponseHandler();
-    }
-
     private async ProcessSend(): Promise<void>
     {
         const lNextSend: TSendRequest | undefined = this.mSendQueue.dequeue();  // Don't we only want one send at a time?
@@ -102,6 +101,23 @@ export class ZMQRequest
             lNextSend.Resolve();
 
             this.ProcessSend();
+        }
+    }
+
+    private async RegisterSender(): Promise<void>
+    {
+        const lRegistrationResult: TRequestResponse = await this.SendRequest([this.mOurUniqueId, "-1"]);
+
+        if (typeof lRegistrationResult === "string")
+        {
+            if (!this.IsRegistrationSuccessful(lRegistrationResult))
+            {
+                console.error({
+                    msg: "UNSUCCESSFUL CHANNEL OPENING",
+                    lOpeningResult: lRegistrationResult,
+                });
+                throw new Error("UNSUCCESSFUL CHANNEL OPENING");
+            }
         }
     }
 
@@ -121,7 +137,7 @@ export class ZMQRequest
         }
     }
 
-    private SendMessage(aRequest: TRequestBody): Promise<void>
+    private SendMessage(aRequest: TRequestUnion): Promise<void>
     {
         let lResolver: () => void;
 
@@ -139,6 +155,19 @@ export class ZMQRequest
         this.ProcessSend();
 
         return lPromise;
+    }
+
+    private async SendRequest(aRequest: TRequestUnion): Promise<TRequestResponse>
+    {
+        const lRequestId: number = Number(aRequest[ERequestBody.Nonce]);
+
+        await this.SendMessage(aRequest);   // Can potentially move this inside of ManageRequest loop
+        this.ManageRequest(lRequestId, aRequest);
+
+        return new Promise<TRequestResponse>((aResolve: TResolve): void =>
+        {
+            this.mPendingRequests.set(lRequestId, aResolve);
+        });
     }
 
     private async WaitResponseTimeout(aRequestId: number): Promise<void>
@@ -163,24 +192,27 @@ export class ZMQRequest
         });
     }
 
+    public Open(): Promise<void>
+    {
+        this.mDealer = new zmq.Dealer;
+        this.mDealer.connect(this.mEndpoint);
+        this.ResponseHandler();
+
+        return this.RegisterSender();
+    }
+
     public async Send(aData: string): Promise<TRequestResponse>
     {
         // TODO: Build a way to safely send multiple requests without creating a backlog
         const lRequestId: number = this.mRequestNonce++;
 
-        const lRequest: TRequestBody =
+        const lRequest: TRequestUnion =
         [
             this.mOurUniqueId,
             lRequestId.toString(),
             aData,
         ];
-        await this.SendMessage(lRequest);   // Can potentially move this inside of ManageRequest loop
 
-        this.ManageRequest(lRequestId, lRequest);
-
-        return new Promise<TRequestResponse>((aResolve: TResolve): void =>
-        {
-            this.mPendingRequests.set(lRequestId, aResolve);
-        });
+        return this.SendRequest(lRequest);
     }
 }

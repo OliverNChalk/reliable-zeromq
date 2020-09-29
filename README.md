@@ -9,6 +9,8 @@
  - Migrate to ESLint
  - Test multiple subscribers to one publisher (networked)
  - Separate Ack + Response in ZMQResponse to distinguish between slow peers and slow endpoints?
+ - Send a closure message on Close() call, allow ZMQResponder and ZMQPublisher to free memory
+ - Remove opening messages and just trigger an opening on the first time a requester is seen
  
 ### Ideas:
  - Mock zmq functionality

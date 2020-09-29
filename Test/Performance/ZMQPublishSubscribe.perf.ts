@@ -1,4 +1,4 @@
-import { PerfTest } from "perf-test";
+import { PerfTest } from "simple-perf";
 import { TCacheError } from "../../Src/Errors";
 import { Delay } from "../../Src/Utils/Delay";
 import { THighWaterMarkWarning, ZMQPublisher } from "../../Src/ZMQPublisher";

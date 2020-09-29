@@ -1,4 +1,4 @@
-import { PerfTest } from "perf-test";
+import { PerfTest } from "simple-perf";
 import { CancellableDelay, Delay } from "../../Src/Utils/Delay";
 
 function SynchronousDelay(): Promise<void>

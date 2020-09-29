@@ -73,9 +73,10 @@ test.serial("ZMQRequest: Start, Send, Receive, Close", async(t: ExecutionContext
         });
     });
 
-    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
+    const lRequester: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
+    await lRequester.Open();
 
-    const lPromiseResult: TRequestResponse = await lRequest.Send(JSONBigInt.Stringify(t.context.TestData));
+    const lPromiseResult: TRequestResponse = await lRequester.Send(JSONBigInt.Stringify(t.context.TestData));
     lExpected.data = t.context.TestData;
 
     if (typeof lPromiseResult !== "string")
@@ -87,7 +88,7 @@ test.serial("ZMQRequest: Start, Send, Receive, Close", async(t: ExecutionContext
         t.deepEqual(JSONBigInt.Parse(lPromiseResult), lExpected);
     }
 
-    const lNotThrowResult: TRequestResponse = await lRequest.Send("this should not throw");
+    const lNotThrowResult: TRequestResponse = await lRequester.Send("this should not throw");
     lExpected.data = "this should not throw";
 
     if (typeof lNotThrowResult !== "string")
@@ -99,7 +100,7 @@ test.serial("ZMQRequest: Start, Send, Receive, Close", async(t: ExecutionContext
         t.deepEqual(JSONBigInt.Parse(lNotThrowResult), lExpected);
     }
 
-    lRequest.Close();
+    lRequester.Close();
     lResponse.Close();
 });
 
@@ -112,22 +113,24 @@ test.serial("ZMQResponse: Start, Receive, Close", async(t: ExecutionContext<TTes
     };
 
     t.context.ResponderEndpoint = "tcp://127.0.0.1:4276";
-    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
     const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, lResponderRouter);
+    const lRequester: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
 
-    const lFirstResponse: TRequestResponse = await lRequest.Send("hello");
+    await lRequester.Open();
+
+    const lFirstResponse: TRequestResponse = await lRequester.Send("hello");
 
     t.is(lFirstResponse, "world");
     t.is(lResponse["mCachedRequests"].size, 1);
 
     lResponder = async(aMsg: string): Promise<string> => aMsg + " response";
-    const lSecondResponse: TRequestResponse = await lRequest.Send("hello");
+    const lSecondResponse: TRequestResponse = await lRequester.Send("hello");
 
     t.is(lSecondResponse, "hello response");
     t.is(lResponse["mCachedRequests"].size, 2);
 
     lResponse.Close();
-    lRequest.Close();
+    lRequester.Close();
 });
 
 test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestContext>): Promise<void> =>

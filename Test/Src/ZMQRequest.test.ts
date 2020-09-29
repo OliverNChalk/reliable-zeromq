@@ -7,6 +7,7 @@ import * as zmq from "zeromq";
 import Config from "../../Src/Config";
 import JSONBigInt from "../../Src/Utils/JSONBigInt";
 import { ERequestBody, TRequestResponse, ZMQRequest } from "../../Src/ZMQRequest";
+import { REGISTRATION_SUCCESS } from "../../Src/ZMQResponse";
 import { YieldToEventLoop } from "../Helpers/AsyncTools";
 
 type TAsyncIteratorResult = { value: any; done: boolean };
@@ -77,45 +78,73 @@ test.afterEach((t: ExecutionContext<TTestContext>): void =>
 test.serial("Start, Send, Receive, Close", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
     const lDealerStub: MockManager<zmq.Dealer> = t.context.DealerMock;
-    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
+    const lRequester: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
+    t.is(lRequester.Endpoint, t.context.ResponderEndpoint);
 
-    t.is(lRequest.Endpoint, t.context.ResponderEndpoint);
+    lDealerStub.mock("connect", undefined);
+    const lSendMock: sinon.SinonStub = lDealerStub.mock("send", Promise.resolve());
 
-    lDealerStub.mock("send", Promise.resolve());
-    const lRequestPromise: Promise<TRequestResponse> = lRequest.Send(JSONBigInt.Stringify(t.context.TestData));
+    const lOpenPromise: Promise<void> = lRequester.Open();
+    await YieldToEventLoop();
+
+    t.context.SendToReceiver(["-1", REGISTRATION_SUCCESS]);
+    await lOpenPromise;
+
+    let lCallCount: number = 0;
+    t.is(lSendMock.callCount, ++lCallCount);
+    t.deepEqual(lSendMock.getCall(lCallCount - 1).args[0], [lRequester["mOurUniqueId"], "-1"]);
+
+    const lRequestPromise: Promise<TRequestResponse> = lRequester.Send(JSONBigInt.Stringify(t.context.TestData));
+    await YieldToEventLoop();
+
+    t.is(lSendMock.callCount, ++lCallCount);
+    t.deepEqual(
+        lSendMock.getCall(lCallCount - 1).args[0],
+        [
+            lRequester["mOurUniqueId"],
+            "0",
+            JSONBigInt.Stringify(t.context.TestData),
+        ],
+    );
 
     const lResponse: string[] =
     [
-        JSONBigInt.Stringify(0),
+        "0",
         "dummy message",
     ];
     t.context.SendToReceiver(lResponse);
 
     const lPromiseResult: TRequestResponse = await lRequestPromise;
+    t.deepEqual(lPromiseResult, lResponse[1]);
 
-    t.is(lPromiseResult, lResponse[1]);
-
-    lRequest.Close();
+    lRequester.Close();
 });
 
 test.serial("Degraded Connection", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
     const clock: sinon.SinonFakeTimers = sinon.useFakeTimers();
     const lDealerStub: MockManager<zmq.Dealer> = t.context.DealerMock;
-    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
+    const lRequester: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
 
-    t.is(lRequest.Endpoint, t.context.ResponderEndpoint);
+    t.is(lRequester.Endpoint, t.context.ResponderEndpoint);
 
+    lDealerStub.mock("connect", undefined);
     lDealerStub.mock("send", Promise.resolve());
-    const lRequestPromise: Promise<TRequestResponse> = lRequest.Send(JSONBigInt.Stringify(t.context.TestData));
 
+    const lOpenPromise: Promise<void> = lRequester.Open();
+    await YieldToEventLoop();
+
+    t.context.SendToReceiver(["-1", REGISTRATION_SUCCESS]);
+    await lOpenPromise;
+
+    const lRequestPromise: Promise<TRequestResponse> = lRequester.Send(JSONBigInt.Stringify(t.context.TestData));
     const lResponse: string[] =
     [
         JSONBigInt.Stringify(0),
         "dummy message",
     ];
 
-    // Send response with 2200ms delay
+    // Send response with 500ms delay
     await YieldToEventLoop();   // Sinon timers don't seem super reliable at triggering timeouts
     clock.tick(501);
     await YieldToEventLoop();
@@ -125,7 +154,7 @@ test.serial("Degraded Connection", async(t: ExecutionContext<TTestContext>): Pro
 
     t.is(lPromiseResult, lResponse[1]);
 
-    const lSecondRequest: Promise<TRequestResponse> = lRequest.Send("MyTestDelayedResponse");
+    const lSecondRequest: Promise<TRequestResponse> = lRequester.Send("MyTestDelayedResponse");
     const lSecondResponse: string[] =
     [
         JSONBigInt.Stringify(1),
@@ -145,18 +174,25 @@ test.serial("Degraded Connection", async(t: ExecutionContext<TTestContext>): Pro
 
     t.is(await lSecondRequest, lSecondResponse[1]);
 
-    lRequest.Close();
+    lRequester.Close();
 });
 
 test.serial("Error: Maximum Latency", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
     const clock: sinon.SinonFakeTimers = sinon.useFakeTimers();
     const lDealerStub: MockManager<zmq.Dealer> = t.context.DealerMock;
-    const lRequest: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
+    const lRequester: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
 
     lDealerStub.mock("send", Promise.resolve());
+    lDealerStub.mock("connect", undefined);
 
-    const lFirstResponsePromise: Promise<TRequestResponse> = lRequest.Send(JSONBigInt.Stringify("hello"));
+    const lOpenPromise: Promise<void> = lRequester.Open();
+    await YieldToEventLoop();
+
+    t.context.SendToReceiver(["-1", REGISTRATION_SUCCESS]);
+    await lOpenPromise;
+
+    const lFirstResponsePromise: Promise<TRequestResponse> = lRequester.Send(JSONBigInt.Stringify("hello"));
 
     t.context.SendToReceiver([JSONBigInt.Stringify(0), "world"]);
 
@@ -164,7 +200,7 @@ test.serial("Error: Maximum Latency", async(t: ExecutionContext<TTestContext>): 
 
     t.is(await lFirstResponsePromise, "world");
 
-    const lFailedRequest: Promise<TRequestResponse> = lRequest.Send(JSONBigInt.Stringify("hello"));
+    const lFailedRequest: Promise<TRequestResponse> = lRequester.Send(JSONBigInt.Stringify("hello"));
     await YieldToEventLoop();
 
     clock.tick(Config.MaximumLatency * 2 + 600);    // 500ms represents the polling interval in ZMQRequest
@@ -175,13 +211,13 @@ test.serial("Error: Maximum Latency", async(t: ExecutionContext<TTestContext>): 
     if (typeof lFailedResult !== "string")
     {
         t.is(lFailedResult.RequestId, 1);
-        t.is(lFailedResult.Request[ERequestBody.Nonce], "1");
-        t.is(lFailedResult.Request[ERequestBody.Message], "\"hello\"");
+        t.is(lFailedResult.RequestBody[ERequestBody.Nonce], "1");
+        t.is(lFailedResult.RequestBody[ERequestBody.Message], "\"hello\"");
     }
     else
     {
         t.fail("lFailedRequest should have resolved to TRequestTimeOut");
     }
 
-    lRequest.Close();
+    lRequester.Close();
 });

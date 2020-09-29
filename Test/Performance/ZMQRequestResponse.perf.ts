@@ -1,4 +1,4 @@
-import { PerfTest } from "perf-test";
+import { PerfTest } from "simple-perf";
 import { Delay } from "../../Src/Utils/Delay";
 import { ZMQRequest } from "../../Src/ZMQRequest";
 import { ZMQResponse } from "../../Src/ZMQResponse";
@@ -35,6 +35,7 @@ const lBenchmarks: PerfTest[] =
 
 async function RunTests(aBenchmarks: PerfTest[]): Promise<void>
 {
+    await lRequester.Open();
     await Delay(500);
 
     for (let i: number = 0; i < aBenchmarks.length; ++i)

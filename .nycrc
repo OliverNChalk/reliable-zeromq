@@ -13,8 +13,10 @@
     "node_modules/**",
     "**/*.d.ts",
     "**/*.test.ts",
+    "**/*.demo.ts",
+    "**/*.perf.ts",
     "**/Gulpfile.js",
-    "**/*.network.js",
+    "**/*.network.ts",
     "**/*.data.ts"
   ],
   "sourceMap": true,
