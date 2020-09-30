@@ -4,8 +4,6 @@
 
 ### TODO:
  - Test what happens when two sockets bind to the same endpoint
- - Register ErrorHandler for HWM
- - Performance Testing
  - Migrate to ESLint
  - Test multiple subscribers to one publisher (networked)
  - Separate Ack + Response in ZMQResponse to distinguish between slow peers and slow endpoints?
@@ -14,6 +12,7 @@
    - Allow messages to be delivered post Close() call, bad idea
    - Wrap the asyncIterator or replace it with a looped calls to receive(), annoying but shouldn't have major side effects or performance impact
  - Default to throwing unhandled errors and suppressing warns
+ 
 ### Ideas:
  - Mock zmq functionality
    - No port conflicts

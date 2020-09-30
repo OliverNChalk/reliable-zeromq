@@ -2,7 +2,7 @@ import { Queue } from "typescript-collections";
 import uniqid from "uniqid";
 import * as zmq from "zeromq";
 import Config from "./Config";
-import { TResponseCacheError } from "./Errors";
+import { DEFAULT_ZMQ_REQUEST_ERROR_HANDLERS, TZMQRequestErrorHandlers } from "./Errors";
 import { CancellableDelay, ICancellableDelay } from "./Utils/Delay";
 import { RESPONSE_CACHE_EXPIRED } from "./ZMQResponse";
 
@@ -32,11 +32,6 @@ export type TRequestTimeOut =
     RequestBody: TRequestBody;
 };
 
-export type TZMQRequestErrorHandlers =
-{
-    CacheError: (aError: TResponseCacheError) => void;
-};
-
 export class ZMQRequest
 {
     private mDealer!: zmq.Dealer;
@@ -49,11 +44,11 @@ export class ZMQRequest
     private readonly mRoundTripMax: number;
     private readonly mSendQueue: Queue<TSendRequest> = new Queue();
 
-    public constructor(aReceiverEndpoint: string, aErrorHandlers: TZMQRequestErrorHandlers)
+    public constructor(aReceiverEndpoint: string, aErrorHandlers?: TZMQRequestErrorHandlers)
     {
         this.mRoundTripMax = Config.MaximumLatency * 2; // Send + response latency
         this.mEndpoint = aReceiverEndpoint;
-        this.mErrorHandlers = aErrorHandlers;
+        this.mErrorHandlers = aErrorHandlers ?? DEFAULT_ZMQ_REQUEST_ERROR_HANDLERS;
         this.mOurUniqueId = uniqid();
 
         this.Open();

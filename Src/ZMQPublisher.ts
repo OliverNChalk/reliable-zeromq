@@ -1,7 +1,7 @@
 import { Queue } from "typescript-collections";
 import * as zmq from "zeromq";
 import Config from "./Config";
-import { TPublisherCacheError } from "./Errors";
+import { DEFAULT_ZMQ_PUBLISHER_ERROR_HANDLERS, TZMQPublisherErrorHandlers } from "./Errors";
 import ExpiryMap from "./Utils/ExpiryMap";
 import JSONBigInt from "./Utils/JSONBigInt";
 import { ZMQResponse } from "./ZMQResponse";
@@ -36,12 +36,6 @@ export type THighWaterMarkWarning =
     Message: string;
 };
 
-export type TZMQPublisherErrorHandlers =
-{
-    CacheError: (aError: TPublisherCacheError) => void;
-    HighWaterMarkWarning: (aWarning: THighWaterMarkWarning) => void;
-};
-
 type TTopicDetails =
 {
     LatestMessageNonce: number;
@@ -60,10 +54,10 @@ export class ZMQPublisher
     private mSafeToPublish: boolean = true;
     private readonly mTopicDetails: Map<string, TTopicDetails> = new Map();
 
-    public constructor(aEndpoint: TSubscriptionEndpoints, aErrorHandlers: TZMQPublisherErrorHandlers)
+    public constructor(aEndpoint: TSubscriptionEndpoints, aErrorHandlers?: TZMQPublisherErrorHandlers)
     {
         this.mEndpoint = aEndpoint;
-        this.mErrorHandlers = aErrorHandlers;
+        this.mErrorHandlers = aErrorHandlers ?? DEFAULT_ZMQ_PUBLISHER_ERROR_HANDLERS;
 
         this.CheckHeartbeats = this.CheckHeartbeats.bind(this);
     }
@@ -113,16 +107,17 @@ export class ZMQPublisher
                 const lMessage: TPublishMessage | undefined = this.mMessageCaches.get(lTopic)!.get(lMessageId);
                 lRequestedMessages.push(lMessage ?? [PUBLISHER_CACHE_EXPIRED]);
 
-                if (lMessage === undefined)
-                {
-                    this.mErrorHandlers.CacheError(
-                        {
-                            Endpoint: this.mEndpoint,
-                            Topic: lTopic,
-                            MessageNonce: lMessageId,
-                        },
-                    );
-                }
+                // NOTE: A cache expiring is something the subscriber needs to deal with
+                // if (lMessage === undefined)
+                // {
+                //     this.mErrorHandlers.CacheError(
+                //         {
+                //             Endpoint: this.mEndpoint,
+                //             Topic: lTopic,
+                //             MessageNonce: lMessageId,
+                //         },
+                //     );
+                // }
             }
         }
 

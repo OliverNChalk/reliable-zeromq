@@ -73,7 +73,7 @@ test.serial("ZMQRequest: Start, Send, Receive, Close", async(t: ExecutionContext
         });
     });
 
-    const lRequester: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint, { CacheError: undefined! });
+    const lRequester: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
 
     const lPromiseResult: TRequestResponse = await lRequester.Send(JSONBigInt.Stringify(t.context.TestData));
     lExpected.data = t.context.TestData;
@@ -113,7 +113,7 @@ test.serial("ZMQResponse: Start, Receive, Close", async(t: ExecutionContext<TTes
 
     t.context.ResponderEndpoint = "tcp://127.0.0.1:4276";
     const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, lResponderRouter);
-    const lRequester: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint, { CacheError: undefined! });
+    const lRequester: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
 
     const lFirstResponse: TRequestResponse = await lRequester.Send("hello");
 
@@ -137,22 +137,14 @@ test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestConte
             PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,
             RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
         },
-        {
-            CacheError: undefined!,
-            HighWaterMarkWarning: undefined!,
-        },
     );
     const lWeatherUpdatePublisher: ZMQPublisher = new ZMQPublisher(
         {
             PublisherAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress,
             RequestAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.RequestAddress,
         },
-        {
-            CacheError: undefined!,
-            HighWaterMarkWarning: undefined!,
-        },
     );
-    const lSubscriber: ZMQSubscriber = new ZMQSubscriber({ CacheError: undefined!, DroppedMessageWarn: undefined! });
+    const lSubscriber: ZMQSubscriber = new ZMQSubscriber();
 
     await lStatusUpdatePublisher.Open();
     await lWeatherUpdatePublisher.Open();

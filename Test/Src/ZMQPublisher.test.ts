@@ -5,7 +5,6 @@ import * as Sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
 import Config from "../../Src/Config";
-import { TPublisherCacheError } from "../../Src/Errors";
 import JSONBigInt from "../../Src/Utils/JSONBigInt";
 import { EMessageType, EPublishMessage, PUBLISHER_CACHE_EXPIRED, ZMQPublisher } from "../../Src/ZMQPublisher";
 import * as ZMQResponse from "../../Src/ZMQResponse";
@@ -62,13 +61,7 @@ test.serial("Start, Publish, Respond, Close", async(t: ExecutionContext<TTestCon
 {
     const clock: Sinon.SinonFakeTimers = Sinon.useFakeTimers();
     const lZmqPublisher: MockManager<zmq.Publisher> = t.context.PublisherMock;
-    const lPublisher: ZMQPublisher = new ZMQPublisher(
-        t.context.Endpoints,
-        {
-            CacheError: undefined!,
-            HighWaterMarkWarning: undefined!,
-        },
-    );
+    const lPublisher: ZMQPublisher = new ZMQPublisher(t.context.Endpoints);
 
     lZmqPublisher.mock("bind", Promise.resolve());
     await lPublisher.Open();
@@ -213,14 +206,7 @@ test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
     Config.MaximumLatency = 1000;
     Config.HeartBeatInterval = 500;
 
-    const lCacheErrors: TPublisherCacheError[] = [];
-    const lPublisher: ZMQPublisher = new ZMQPublisher(
-        t.context.Endpoints,
-        {
-            CacheError: (aError: TPublisherCacheError): void => { lCacheErrors.push(aError); },
-            HighWaterMarkWarning: undefined!,
-        },
-    );
+    const lPublisher: ZMQPublisher = new ZMQPublisher(t.context.Endpoints);
 
     lZmqPublisher.mock("bind", Promise.resolve());
     // lResponseMock.mock("Open" as any, Promise.resolve());
@@ -247,14 +233,6 @@ test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
     ];
 
     t.deepEqual(lFirstRecoveryResponse, lFirstExpectedResponse);
-    t.deepEqual(
-        lCacheErrors[0],
-        {
-            Endpoint: t.context.Endpoints,
-            Topic: "myTopicA",
-            MessageNonce: 2,
-        },
-    );
 
     await lPublisher.Publish("myTopicA", "mySecondMessage");    // Message 1 & 2 published on timestamp: 0
     clock.tick(501);    // const EXPIRY_BUFFER: number = 500;
@@ -285,22 +263,6 @@ test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
     ];
 
     t.deepEqual(lSecondRecoveryResponse, lSecondExpectedResponse);
-    t.deepEqual(
-        lCacheErrors[1],
-        {
-            Endpoint: t.context.Endpoints,
-            Topic: "myTopicA",
-            MessageNonce: 1,
-        },
-    );
-    t.deepEqual(
-        lCacheErrors[2],
-        {
-            Endpoint: t.context.Endpoints,
-            Topic: "myTopicA",
-            MessageNonce: 2,
-        },
-    );
 
     lPublisher.Close();
 

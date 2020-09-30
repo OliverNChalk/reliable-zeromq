@@ -1,5 +1,5 @@
 import * as zmq from "zeromq";
-import { TPublisherCacheError } from "../Errors";
+import { DEFAULT_ZMQ_SUBSCRIBER_ERROR_HANDLERS, TZMQSubscriberErrorHandlers } from "../Errors";
 import JSONBigInt from "../Utils/JSONBigInt";
 import {
     EMessageType,
@@ -33,18 +33,6 @@ export type TSubscriptionEndpoints =
     RequestAddress: string;
 };
 
-export type TDroppedMessageWarning =
-{
-    Topic: string;
-    Nonces: number[];
-};
-
-export type TZMQSubscriberErrorHandlers =
-{
-    CacheError: (aError: TPublisherCacheError) => void;
-    DroppedMessageWarn: (aError: TDroppedMessageWarning) => void;
-};
-
 export class ZMQSubscriber
 {
     private readonly mEndpoints: Map<string, TEndpointEntry> = new Map<string, TEndpointEntry>();
@@ -52,9 +40,9 @@ export class ZMQSubscriber
     private mSubscriptions: Map<number, TInternalSubscription> = new Map();
     private mTokenId: number = 0;
 
-    public constructor(aErrorHandlers: TZMQSubscriberErrorHandlers)
+    public constructor(aErrorHandlers?: TZMQSubscriberErrorHandlers)
     {
-        this.mErrorHandlers = aErrorHandlers;
+        this.mErrorHandlers = aErrorHandlers ?? DEFAULT_ZMQ_SUBSCRIBER_ERROR_HANDLERS;
     }
 
     private get SubscriptionId(): number
@@ -76,7 +64,7 @@ export class ZMQSubscriber
 
         const lSocketEntry: TEndpointEntry = {
             Subscriber: lSubSocket,
-            Requester: new ZMQRequest(aEndpoint.RequestAddress, { CacheError: undefined! }),
+            Requester: new ZMQRequest(aEndpoint.RequestAddress),
             TopicEntries: new Map<string, TopicEntry>(),
         };
 
