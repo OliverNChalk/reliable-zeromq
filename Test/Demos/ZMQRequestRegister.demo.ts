@@ -8,7 +8,7 @@ async function RunDemo(): Promise<void>
     const lResponder: ZMQResponse = new ZMQResponse(lEndpoint, (): Promise<string> => Promise.resolve("RESPONSE"));
     const lRequester: ZMQRequest = new ZMQRequest(lEndpoint);
 
-    await lRequester.Open();
+    await lRequester.Send("HELLO, THIS IS MESSAGE 1");
 
     lResponder.Close();
     lRequester.Close();

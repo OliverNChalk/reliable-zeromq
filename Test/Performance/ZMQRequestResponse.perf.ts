@@ -35,7 +35,6 @@ const lBenchmarks: PerfTest[] =
 
 async function RunTests(aBenchmarks: PerfTest[]): Promise<void>
 {
-    await lRequester.Open();
     await Delay(500);
 
     for (let i: number = 0; i < aBenchmarks.length; ++i)

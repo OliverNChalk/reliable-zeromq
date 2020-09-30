@@ -5,7 +5,7 @@ import * as sinon from "sinon";
 import Sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
-import { REGISTRATION_SUCCESS, ZMQResponse } from "../../Src/ZMQResponse";
+import { ZMQResponse } from "../../Src/ZMQResponse";
 import { YieldToEventLoop } from "../Helpers/AsyncTools";
 
 type TAsyncIteratorResult = { value: any; done: boolean };
@@ -77,18 +77,7 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
     t.is(lResponse.Endpoint, t.context.ResponderEndpoint);
     t.is(lBindMock.callCount, 1);
 
-    // Register new sender with id: "unique_sender_id"
-    t.context.SendToReceiver([
-        "sender",
-        "unique_sender_id",
-        "-1",
-    ]);
-    await YieldToEventLoop();
-
-    let lRouterSendCalls: number = 0;
-    t.is(lSendMock.callCount, ++lRouterSendCalls);
-    t.deepEqual(lSendMock.getCall(lRouterSendCalls - 1).args[0], ["sender", "-1", REGISTRATION_SUCCESS]);
-
+    // Send first message to ZMQResponse
     t.context.SendToReceiver([
         "sender",
         "unique_sender_id",
@@ -97,6 +86,7 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
     ]);
     await YieldToEventLoop();
 
+    let lRouterSendCalls: number = 0;
     t.is(lSendMock.callCount, ++lRouterSendCalls);
     t.is(lResponse["mCachedRequests"].size, 1);
     t.deepEqual(lSendMock.getCall(lRouterSendCalls - 1).args[0], ["sender", "0", "world"]);
@@ -137,6 +127,38 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
     t.is(lSendMock.callCount, ++lRouterSendCalls);
     t.is(lResponse["mCachedRequests"].size, 2);
     t.deepEqual(lSendMock.getCall(lRouterSendCalls - 1).args[0], ["sender", "1", "this should not throw response"]);
+
+    t.context.SendToReceiver([
+        "sender",
+        "unique_sender_id",
+        "3",
+        "this should not throw",
+    ]);
+    await YieldToEventLoop();
+
+    t.is(lSendMock.callCount, ++lRouterSendCalls);
+    t.is(lResponse["mCachedRequests"].size, 3);
+    t.deepEqual(lSendMock.getCall(lRouterSendCalls - 1).args[0], ["sender", "3", "this should not throw response"]);
+
+    t.context.SendToReceiver([
+        "sender",
+        "unique_sender_id",
+        "2",
+        "this should not throw",
+    ]);
+    await YieldToEventLoop();
+
+    t.is(lSendMock.callCount, ++lRouterSendCalls);
+    t.is(lResponse["mCachedRequests"].size, 4);
+    t.deepEqual(lSendMock.getCall(lRouterSendCalls - 1).args[0], ["sender", "2", "this should not throw response"]);
+
+    // Test LowestUnseenNonce garbage cleaning
+    t.is(lResponse["mSeenMessages"].get("unique_sender_id")!.HighestConsecutiveNonce, 3);
+    t.is(lResponse["mSeenMessages"].get("unique_sender_id")!.SeenNonces.get(0), undefined);
+    t.is(lResponse["mSeenMessages"].get("unique_sender_id")!.SeenNonces.get(1), undefined);
+    t.is(lResponse["mSeenMessages"].get("unique_sender_id")!.SeenNonces.get(2), undefined);
+    t.is(lResponse["mSeenMessages"].get("unique_sender_id")!.SeenNonces.get(3), undefined);
+    t.is(lResponse["mSeenMessages"].get("unique_sender_id")!.SeenNonces.get(4), undefined);
 
     lResponse.Close();
 });

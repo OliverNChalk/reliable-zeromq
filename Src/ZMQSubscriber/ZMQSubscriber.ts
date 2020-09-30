@@ -79,7 +79,6 @@ export class ZMQSubscriber
             Requester: new ZMQRequest(aEndpoint.RequestAddress),
             TopicEntries: new Map<string, TopicEntry>(),
         };
-        lSocketEntry.Requester.Open();  // TODO: This is not guaranteed to register the requester before the first request goes out...
 
         this.mEndpoints.set(aEndpoint.PublisherAddress, lSocketEntry);
 

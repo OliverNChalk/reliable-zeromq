@@ -2,21 +2,19 @@ import * as zmq from "zeromq";
 import Config from "./Config";
 import ExpiryMap from "./Utils/ExpiryMap";
 
-export const REGISTRATION_SUCCESS: "OPENING_SUCCESS" = "OPENING_SUCCESS";
-
 type TRequesterEntry =
 {
-    LowestUnseenNonce: number;
+    HighestConsecutiveNonce: number;
     SeenNonces: Map<number, boolean>;   // TODO: Replace with an array with index 0 === LowestUnseenNonce, array size = LatestNonce - LowestUnseenNonce
 };
 
 export class ZMQResponse
 {
     private readonly mCachedRequests: ExpiryMap<string, string | Promise<string>>;
-    private mRouter!: zmq.Router;
     private readonly mEndpoint: string;
     private readonly mRequestHandler: (aRequest: string) => Promise<string>;
     private readonly mSeenMessages: Map<string, TRequesterEntry> = new Map();
+    private mRouter!: zmq.Router;
 
     public constructor(aReplierEndpoint: string, aReceiver: (aRequest: string) => Promise<string>)
     {
@@ -30,6 +28,26 @@ export class ZMQResponse
     public get Endpoint(): string
     {
         return this.mEndpoint;
+    }
+
+    private GarbageCleanSeenNonces(aRequesterEntry: TRequesterEntry): void
+    {
+        // Garbage clean from LowestUnseenNonce + 1 until gap detected
+        const lSortedEntries: [number, boolean][] = Array.from(aRequesterEntry.SeenNonces).sort();
+
+        let lPreviousNonce: number = aRequesterEntry.HighestConsecutiveNonce;
+        lSortedEntries.forEach((aEntry: [number, boolean]) =>
+        {
+            // Walk through seen nonces until gap detected
+            const lSeenNonce: number = aEntry[0];
+            if (lSeenNonce === lPreviousNonce + 1)
+            {
+                aRequesterEntry.SeenNonces.delete(lSeenNonce);
+                lPreviousNonce++;
+            }
+        });
+
+        aRequesterEntry.HighestConsecutiveNonce = lPreviousNonce;
     }
 
     private HandleDuplicateRequest(sender_uid: Buffer, nonce: Buffer, msg: Buffer, routing_id: Buffer): void
@@ -57,27 +75,14 @@ export class ZMQResponse
         });
     }
 
-    private HandleOpening(aSenderId: string, aRoutingId: Buffer): void
+    private HandleOpening(aSenderId: string): void
     {
-        // Register a new sender permanently
-        if (!this.mSeenMessages.has(aSenderId))
-        {
-            this.mSeenMessages.set(aSenderId, { LowestUnseenNonce: -1, SeenNonces: new Map() });
-        }
-
-        // Respond to sender, regardless of whether this is first message
-        this.mRouter.send([aRoutingId, (-1).toString(), REGISTRATION_SUCCESS]);
+        // Register the new sender
+        this.mSeenMessages.set(aSenderId, { HighestConsecutiveNonce: -1, SeenNonces: new Map() });
     }
 
     private HandleRequest(sender_uid: Buffer, nonce: Buffer, msg: Buffer, routing_id: Buffer): void
     {
-        // IF (NEW_NONCE())
-        //  CALL HANDLER
-        //  RESPOND HANDLER_RESULT
-        // ELSE IF (IN_CACHE())
-        //  RESPOND CACHE_RESULT
-        // ELSE
-        //  RESPOND CACHE_EXPIRED_ERROR
         const lSenderUID: string = sender_uid.toString();
         const lNonce: number = Number(nonce.toString());
         if (this.UnseenRequest(lSenderUID, lNonce))
@@ -99,9 +104,9 @@ export class ZMQResponse
         }
     }
 
-    private IsOpeningMessage(aNonce: number): boolean
+    private IsNewRequester(aSenderUID: string): boolean
     {
-        return aNonce === -1;
+        return !this.mSeenMessages.has(aSenderUID);
     }
 
     private Open(): void
@@ -118,15 +123,13 @@ export class ZMQResponse
     {
         for await (const [routing_id, sender_uid, nonce, msg] of this.mRouter)
         {
-            // Forward requests to the registered handler
-            if (this.IsOpeningMessage(Number(nonce)))
+            const lSenderUID: string = sender_uid.toString();
+            if (this.IsNewRequester(lSenderUID))
             {
-                this.HandleOpening(sender_uid.toString(), routing_id);
+                this.HandleOpening(lSenderUID);
             }
-            else
-            {
-                this.HandleRequest(sender_uid, nonce, msg, routing_id);
-            }
+
+            this.HandleRequest(sender_uid, nonce, msg, routing_id);
         }
     }
 
@@ -141,7 +144,7 @@ export class ZMQResponse
     {
         const lRequesterEntry: TRequesterEntry = this.mSeenMessages.get(aSenderUID)!;
 
-        const lHighEnough: boolean = aNonce > lRequesterEntry.LowestUnseenNonce;
+        const lHighEnough: boolean = aNonce > lRequesterEntry.HighestConsecutiveNonce;
         const lInSeenNoncesMap: boolean = lRequesterEntry.SeenNonces.has(aNonce);
 
         return lHighEnough && !lInSeenNoncesMap;
@@ -151,28 +154,16 @@ export class ZMQResponse
     {
         const lRequesterEntry: TRequesterEntry = this.mSeenMessages.get(aSenderUID)!;
 
-        if (aNewNonce === lRequesterEntry.LowestUnseenNonce + 1)
+        if (aNewNonce === lRequesterEntry.HighestConsecutiveNonce + 1)
         {
-            lRequesterEntry.LowestUnseenNonce += 1;
+            lRequesterEntry.HighestConsecutiveNonce += 1;
+            this.GarbageCleanSeenNonces(lRequesterEntry);
         }
         else
         {
             // Set the nonce as seen
             lRequesterEntry.SeenNonces.set(aNewNonce, true);
-
-            // Garbage clean from LowestUnseenNonce + 1 until gap detected
-            const lSortedEntries: [number, boolean][] = Array.from(lRequesterEntry.SeenNonces).sort();
-
-            let lPreviousNonce: number = lRequesterEntry.LowestUnseenNonce;
-            lSortedEntries.forEach((aEntry: [number, boolean]) =>
-            {
-                // Walk through seen nonces until gap detected
-                if (aEntry[0] === lPreviousNonce + 1)
-                {
-                    lRequesterEntry.SeenNonces.delete(lPreviousNonce);
-                    lPreviousNonce++;
-                }
-            });
+            this.GarbageCleanSeenNonces(lRequesterEntry);
         }
     }
 

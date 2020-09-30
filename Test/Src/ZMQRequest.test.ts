@@ -7,7 +7,6 @@ import * as zmq from "zeromq";
 import Config from "../../Src/Config";
 import JSONBigInt from "../../Src/Utils/JSONBigInt";
 import { ERequestBody, TRequestResponse, ZMQRequest } from "../../Src/ZMQRequest";
-import { REGISTRATION_SUCCESS } from "../../Src/ZMQResponse";
 import { YieldToEventLoop } from "../Helpers/AsyncTools";
 
 type TAsyncIteratorResult = { value: any; done: boolean };
@@ -84,19 +83,10 @@ test.serial("Start, Send, Receive, Close", async(t: ExecutionContext<TTestContex
     lDealerStub.mock("connect", undefined);
     const lSendMock: sinon.SinonStub = lDealerStub.mock("send", Promise.resolve());
 
-    const lOpenPromise: Promise<void> = lRequester.Open();
-    await YieldToEventLoop();
-
-    t.context.SendToReceiver(["-1", REGISTRATION_SUCCESS]);
-    await lOpenPromise;
-
-    let lCallCount: number = 0;
-    t.is(lSendMock.callCount, ++lCallCount);
-    t.deepEqual(lSendMock.getCall(lCallCount - 1).args[0], [lRequester["mOurUniqueId"], "-1"]);
-
     const lRequestPromise: Promise<TRequestResponse> = lRequester.Send(JSONBigInt.Stringify(t.context.TestData));
     await YieldToEventLoop();
 
+    let lCallCount: number = 0;
     t.is(lSendMock.callCount, ++lCallCount);
     t.deepEqual(
         lSendMock.getCall(lCallCount - 1).args[0],
@@ -130,12 +120,6 @@ test.serial("Degraded Connection", async(t: ExecutionContext<TTestContext>): Pro
 
     lDealerStub.mock("connect", undefined);
     lDealerStub.mock("send", Promise.resolve());
-
-    const lOpenPromise: Promise<void> = lRequester.Open();
-    await YieldToEventLoop();
-
-    t.context.SendToReceiver(["-1", REGISTRATION_SUCCESS]);
-    await lOpenPromise;
 
     const lRequestPromise: Promise<TRequestResponse> = lRequester.Send(JSONBigInt.Stringify(t.context.TestData));
     const lResponse: string[] =
@@ -185,12 +169,6 @@ test.serial("Error: Maximum Latency", async(t: ExecutionContext<TTestContext>): 
 
     lDealerStub.mock("send", Promise.resolve());
     lDealerStub.mock("connect", undefined);
-
-    const lOpenPromise: Promise<void> = lRequester.Open();
-    await YieldToEventLoop();
-
-    t.context.SendToReceiver(["-1", REGISTRATION_SUCCESS]);
-    await lOpenPromise;
 
     const lFirstResponsePromise: Promise<TRequestResponse> = lRequester.Send(JSONBigInt.Stringify("hello"));
 

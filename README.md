@@ -11,6 +11,9 @@
  - Separate Ack + Response in ZMQResponse to distinguish between slow peers and slow endpoints?
  - Send a closure message on Close() call, allow ZMQResponder and ZMQPublisher to free memory
  - Remove opening messages and just trigger an opening on the first time a requester is seen
+ - ZeroMQ will still deliver messages post setting linger to zero and calling close, this might be caused by messages already being picked up by the socket and ready to be received on the next iteration of the event loop. Options on how to handle this:
+   - Allow messages to be delivered post Close() call, bad idea
+   - Wrap the asyncIterator or replace it with a looped calls to receive(), annoying but shouldn't have major side effects or performance impact
  
 ### Ideas:
  - Mock zmq functionality

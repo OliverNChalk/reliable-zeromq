@@ -74,7 +74,6 @@ test.serial("ZMQRequest: Start, Send, Receive, Close", async(t: ExecutionContext
     });
 
     const lRequester: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
-    await lRequester.Open();
 
     const lPromiseResult: TRequestResponse = await lRequester.Send(JSONBigInt.Stringify(t.context.TestData));
     lExpected.data = t.context.TestData;
@@ -115,8 +114,6 @@ test.serial("ZMQResponse: Start, Receive, Close", async(t: ExecutionContext<TTes
     t.context.ResponderEndpoint = "tcp://127.0.0.1:4276";
     const lResponse: ZMQResponse = new ZMQResponse(t.context.ResponderEndpoint, lResponderRouter);
     const lRequester: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
-
-    await lRequester.Open();
 
     const lFirstResponse: TRequestResponse = await lRequester.Send("hello");
 
