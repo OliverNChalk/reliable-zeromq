@@ -6,7 +6,7 @@ async function RunDemo(): Promise<void>
 {
     const lEndpoint: string = TestEndpoint.GetEndpoint("RegistrationDemo");
     const lResponder: ZMQResponse = new ZMQResponse(lEndpoint, (): Promise<string> => Promise.resolve("RESPONSE"));
-    const lRequester: ZMQRequest = new ZMQRequest(lEndpoint);
+    const lRequester: ZMQRequest = new ZMQRequest(lEndpoint, { CacheError: undefined! });
 
     await lRequester.Send("HELLO, THIS IS MESSAGE 1");
 

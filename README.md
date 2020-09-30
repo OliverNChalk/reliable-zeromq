@@ -13,7 +13,7 @@
  - ZeroMQ will still deliver messages post setting linger to zero and calling close, this might be caused by messages already being picked up by the socket and ready to be received on the next iteration of the event loop. Options on how to handle this:
    - Allow messages to be delivered post Close() call, bad idea
    - Wrap the asyncIterator or replace it with a looped calls to receive(), annoying but shouldn't have major side effects or performance impact
- 
+ - Default to throwing unhandled errors and suppressing warns
 ### Ideas:
  - Mock zmq functionality
    - No port conflicts

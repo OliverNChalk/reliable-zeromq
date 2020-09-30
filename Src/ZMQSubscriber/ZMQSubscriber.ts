@@ -1,5 +1,5 @@
 import * as zmq from "zeromq";
-import { TCacheError } from "../Errors";
+import { TPublisherCacheError } from "../Errors";
 import JSONBigInt from "../Utils/JSONBigInt";
 import {
     EMessageType,
@@ -41,7 +41,7 @@ export type TDroppedMessageWarning =
 
 export type TZMQSubscriberErrorHandlers =
 {
-    CacheError: (aError: TCacheError) => void;
+    CacheError: (aError: TPublisherCacheError) => void;
     DroppedMessageWarn: (aError: TDroppedMessageWarning) => void;
 };
 
@@ -76,7 +76,7 @@ export class ZMQSubscriber
 
         const lSocketEntry: TEndpointEntry = {
             Subscriber: lSubSocket,
-            Requester: new ZMQRequest(aEndpoint.RequestAddress),
+            Requester: new ZMQRequest(aEndpoint.RequestAddress, { CacheError: undefined! }),
             TopicEntries: new Map<string, TopicEntry>(),
         };
 
@@ -108,7 +108,7 @@ export class ZMQSubscriber
             {
                 Endpoint: aEndpoint,
                 Topic: aTopic,
-                MessageId: aMessageId,
+                MessageNonce: aMessageId,
             },
         );
     }

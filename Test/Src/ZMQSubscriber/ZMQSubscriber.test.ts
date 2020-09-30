@@ -4,7 +4,7 @@ import anyTest, { ExecutionContext } from "ava";
 import sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
-import { TCacheError } from "../../../Src/Errors";
+import { TPublisherCacheError } from "../../../Src/Errors";
 import JSONBigInt from "../../../Src/Utils/JSONBigInt";
 import { EMessageType, PUBLISHER_CACHE_EXPIRED, TRecoveryResponse } from "../../../Src/ZMQPublisher";
 import * as ZMQRequest from "../../../Src/ZMQRequest";
@@ -344,11 +344,11 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
     const lIteratorStub: Sinon.SinonStub = lZmqSubscriberMock.mock(Symbol.asyncIterator, lNewIterator);
     lIteratorStub.callsFake(lNewIterator);
 
-    const lCacheErrors: TCacheError[] = [];
+    const lCacheErrors: TPublisherCacheError[] = [];
     const lDroppedMessages: TDroppedMessageWarning[] = [];
     const lSubscriber: ZMQSubscriber = new ZMQSubscriber(
         {
-            CacheError: (aError: TCacheError): void => { lCacheErrors.push(aError); },
+            CacheError: (aError: TPublisherCacheError): void => { lCacheErrors.push(aError); },
             DroppedMessageWarn: (aWarning: TDroppedMessageWarning): void => { lDroppedMessages.push(aWarning); },
         },
     );
@@ -430,7 +430,7 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
         {
             Endpoint: t.context.WeatherEndpoint,
             Topic: "Sydney",
-            MessageId: 5,
+            MessageNonce: 5,
         },
     );
     t.is(lResults.length, 8);
@@ -475,7 +475,7 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
         {
             Endpoint: t.context.WeatherEndpoint,
             Topic: "Sydney",
-            MessageId: 7,
+            MessageNonce: 7,
         },
     );
 

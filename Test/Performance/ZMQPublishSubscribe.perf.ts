@@ -1,5 +1,5 @@
 import { PerfTest } from "simple-perf";
-import { TCacheError } from "../../Src/Errors";
+import { TPublisherCacheError } from "../../Src/Errors";
 import { Delay } from "../../Src/Utils/Delay";
 import { THighWaterMarkWarning, ZMQPublisher } from "../../Src/ZMQPublisher";
 import { TDroppedMessageWarning, ZMQSubscriber } from "../../Src/ZMQSubscriber/ZMQSubscriber";
@@ -13,13 +13,13 @@ const lPublisher: ZMQPublisher = new ZMQPublisher(
         RequestAddress: lRecoveryEndpoint,
     },
     {
-        CacheError: (aError: TCacheError): void => { throw aError; },
+        CacheError: (aError: TPublisherCacheError): void => { throw aError; },
         HighWaterMarkWarning: (aWarning: THighWaterMarkWarning): void => { throw aWarning; },
     },
 );
 const lSubscriber: ZMQSubscriber = new ZMQSubscriber(
     {
-        CacheError: (aError: TCacheError): void => { throw aError; },
+        CacheError: (aError: TPublisherCacheError): void => { throw aError; },
         DroppedMessageWarn: (aError: TDroppedMessageWarning): void => { throw aError; },
     },
 );

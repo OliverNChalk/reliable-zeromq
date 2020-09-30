@@ -5,7 +5,7 @@ import * as Sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
 import Config from "../../Src/Config";
-import { TCacheError } from "../../Src/Errors";
+import { TPublisherCacheError } from "../../Src/Errors";
 import JSONBigInt from "../../Src/Utils/JSONBigInt";
 import { EMessageType, EPublishMessage, PUBLISHER_CACHE_EXPIRED, ZMQPublisher } from "../../Src/ZMQPublisher";
 import * as ZMQResponse from "../../Src/ZMQResponse";
@@ -213,11 +213,11 @@ test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
     Config.MaximumLatency = 1000;
     Config.HeartBeatInterval = 500;
 
-    const lCacheErrors: TCacheError[] = [];
+    const lCacheErrors: TPublisherCacheError[] = [];
     const lPublisher: ZMQPublisher = new ZMQPublisher(
         t.context.Endpoints,
         {
-            CacheError: (aError: TCacheError): void => { lCacheErrors.push(aError); },
+            CacheError: (aError: TPublisherCacheError): void => { lCacheErrors.push(aError); },
             HighWaterMarkWarning: undefined!,
         },
     );
@@ -252,7 +252,7 @@ test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
         {
             Endpoint: t.context.Endpoints,
             Topic: "myTopicA",
-            MessageId: 2,
+            MessageNonce: 2,
         },
     );
 
@@ -290,7 +290,7 @@ test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
         {
             Endpoint: t.context.Endpoints,
             Topic: "myTopicA",
-            MessageId: 1,
+            MessageNonce: 1,
         },
     );
     t.deepEqual(
@@ -298,7 +298,7 @@ test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
         {
             Endpoint: t.context.Endpoints,
             Topic: "myTopicA",
-            MessageId: 2,
+            MessageNonce: 2,
         },
     );
 

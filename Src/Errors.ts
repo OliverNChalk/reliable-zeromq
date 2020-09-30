@@ -1,8 +1,14 @@
 import { TSubscriptionEndpoints } from "./ZMQSubscriber/ZMQSubscriber";
 
-export type TCacheError =
+export type TPublisherCacheError =
 {
     Endpoint: TSubscriptionEndpoints;
     Topic: string;
-    MessageId: number;
+    MessageNonce: number;
+};
+
+export type TResponseCacheError =
+{
+    Endpoint: string;
+    MessageNonce: number;
 };

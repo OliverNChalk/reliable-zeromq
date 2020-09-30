@@ -1,7 +1,7 @@
 import { Queue } from "typescript-collections";
 import * as zmq from "zeromq";
 import Config from "./Config";
-import { TCacheError } from "./Errors";
+import { TPublisherCacheError } from "./Errors";
 import ExpiryMap from "./Utils/ExpiryMap";
 import JSONBigInt from "./Utils/JSONBigInt";
 import { ZMQResponse } from "./ZMQResponse";
@@ -38,7 +38,7 @@ export type THighWaterMarkWarning =
 
 export type TZMQPublisherErrorHandlers =
 {
-    CacheError: (aError: TCacheError) => void;
+    CacheError: (aError: TPublisherCacheError) => void;
     HighWaterMarkWarning: (aWarning: THighWaterMarkWarning) => void;
 };
 
@@ -111,7 +111,7 @@ export class ZMQPublisher
             {
                 const lMessageId: number = lDecodedRequest[i];
                 const lMessage: TPublishMessage | undefined = this.mMessageCaches.get(lTopic)!.get(lMessageId);
-                lRequestedMessages.push(lMessage || [PUBLISHER_CACHE_EXPIRED]);
+                lRequestedMessages.push(lMessage ?? [PUBLISHER_CACHE_EXPIRED]);
 
                 if (lMessage === undefined)
                 {
@@ -119,7 +119,7 @@ export class ZMQPublisher
                         {
                             Endpoint: this.mEndpoint,
                             Topic: lTopic,
-                            MessageId: lMessageId,
+                            MessageNonce: lMessageId,
                         },
                     );
                 }

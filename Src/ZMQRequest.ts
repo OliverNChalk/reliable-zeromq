@@ -2,7 +2,9 @@ import { Queue } from "typescript-collections";
 import uniqid from "uniqid";
 import * as zmq from "zeromq";
 import Config from "./Config";
+import { TResponseCacheError } from "./Errors";
 import { CancellableDelay, ICancellableDelay } from "./Utils/Delay";
+import { RESPONSE_CACHE_EXPIRED } from "./ZMQResponse";
 
 const RESPONSE_TIMEOUT: number = 500;   // 500ms   (this includes computation time on the sync wrapped services)
 
@@ -30,23 +32,28 @@ export type TRequestTimeOut =
     RequestBody: TRequestBody;
 };
 
+export type TZMQRequestErrorHandlers =
+{
+    CacheError: (aError: TResponseCacheError) => void;
+};
+
 export class ZMQRequest
 {
     private mDealer!: zmq.Dealer;
     private readonly mEndpoint: string;
+    private readonly mErrorHandlers: TZMQRequestErrorHandlers;
     private readonly mOurUniqueId: string;
-    private mPendingDelays: Map<number, ICancellableDelay> = new Map();
-    private mPendingRequests: Map<number, TResolve> = new Map();
+    private readonly mPendingDelays: Map<number, ICancellableDelay> = new Map();
+    private readonly mPendingRequests: Map<number, TResolve> = new Map();
     private mRequestNonce: number = 0;
     private readonly mRoundTripMax: number;
+    private readonly mSendQueue: Queue<TSendRequest> = new Queue();
 
-    // Message queueing
-    private mSendQueue: Queue<TSendRequest> = new Queue();
-
-    public constructor(aReceiverEndpoint: string)
+    public constructor(aReceiverEndpoint: string, aErrorHandlers: TZMQRequestErrorHandlers)
     {
         this.mRoundTripMax = Config.MaximumLatency * 2; // Send + response latency
         this.mEndpoint = aReceiverEndpoint;
+        this.mErrorHandlers = aErrorHandlers;
         this.mOurUniqueId = uniqid();
 
         this.Open();
@@ -69,6 +76,11 @@ export class ZMQRequest
                 },
             );
         }
+    }
+
+    private IsErrorMessage(aMessage: string): boolean
+    {
+        return aMessage === RESPONSE_CACHE_EXPIRED;
     }
 
     private async ManageRequest(aRequestId: number, aRequest: TRequestBody): Promise<void>
@@ -110,13 +122,22 @@ export class ZMQRequest
         for await (const [nonce, msg] of this.mDealer)
         {
             // Forward requests to the registered handler
-            const lRequestId: number = Number(nonce.toString());
-            const lMessageCaller: TResolve | undefined = this.mPendingRequests.get(lRequestId);
+            const lRequestNonce: number = Number(nonce.toString());
+            const lMessage: string = msg.toString();
 
-            if (lMessageCaller)
+            const lMessageCaller: TResolve | undefined = this.mPendingRequests.get(lRequestNonce);
+
+            if (this.IsErrorMessage(lMessage))
+            {
+                this.mErrorHandlers.CacheError({
+                    Endpoint: this.mEndpoint,
+                    MessageNonce: Number(nonce),
+                });
+            }
+            else if (lMessageCaller)
             {
                 lMessageCaller(msg.toString());
-                this.mPendingRequests.delete(lRequestId);
+                this.mPendingRequests.delete(lRequestNonce);
             }
         }
     }

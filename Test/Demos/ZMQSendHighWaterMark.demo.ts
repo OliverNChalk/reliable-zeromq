@@ -1,6 +1,6 @@
 /* tslint:disable no-console tslint:disable no-string-literal */
 import Config from "../../Src/Config";
-import { TCacheError } from "../../Src/Errors";
+import { TPublisherCacheError } from "../../Src/Errors";
 import { Delay } from "../../Src/Utils/Delay";
 import { THighWaterMarkWarning, ZMQPublisher } from "../../Src/ZMQPublisher";
 import { TDroppedMessageWarning, TSubscriptionEndpoints, ZMQSubscriber } from "../../Src/ZMQSubscriber/ZMQSubscriber";
@@ -20,7 +20,7 @@ async function RunHWMDemo(aHighWaterMark: number): Promise<void>
     const lStatusUpdatePublisher: ZMQPublisher = new ZMQPublisher(
         lEndpoint,
         {
-            CacheError: (aError: TCacheError): void => { lPubErrors.push(aError); },
+            CacheError: (aError: TPublisherCacheError): void => { lPubErrors.push(aError); },
             HighWaterMarkWarning: (aWarning: THighWaterMarkWarning): void => { lPubErrors.push(aWarning); },
         },
     );
@@ -30,7 +30,7 @@ async function RunHWMDemo(aHighWaterMark: number): Promise<void>
 
     const lSubscriber: ZMQSubscriber = new ZMQSubscriber(
         {
-            CacheError: (aError: TCacheError): void => { lSubErrors.push(aError); },
+            CacheError: (aError: TPublisherCacheError): void => { lSubErrors.push(aError); },
             DroppedMessageWarn: (aWarning: TDroppedMessageWarning): void => { lSubErrors.push(aWarning); },
         },
     );

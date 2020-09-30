@@ -77,7 +77,7 @@ test.afterEach((t: ExecutionContext<TTestContext>): void =>
 test.serial("Start, Send, Receive, Close", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
     const lDealerStub: MockManager<zmq.Dealer> = t.context.DealerMock;
-    const lRequester: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
+    const lRequester: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint, { CacheError: undefined! });
     t.is(lRequester.Endpoint, t.context.ResponderEndpoint);
 
     lDealerStub.mock("connect", undefined);
@@ -114,7 +114,7 @@ test.serial("Degraded Connection", async(t: ExecutionContext<TTestContext>): Pro
 {
     const clock: sinon.SinonFakeTimers = sinon.useFakeTimers();
     const lDealerStub: MockManager<zmq.Dealer> = t.context.DealerMock;
-    const lRequester: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
+    const lRequester: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint, { CacheError: undefined! });
 
     t.is(lRequester.Endpoint, t.context.ResponderEndpoint);
 
@@ -165,7 +165,7 @@ test.serial("Error: Maximum Latency", async(t: ExecutionContext<TTestContext>): 
 {
     const clock: sinon.SinonFakeTimers = sinon.useFakeTimers();
     const lDealerStub: MockManager<zmq.Dealer> = t.context.DealerMock;
-    const lRequester: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
+    const lRequester: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint, { CacheError: undefined! });
 
     lDealerStub.mock("send", Promise.resolve());
     lDealerStub.mock("connect", undefined);

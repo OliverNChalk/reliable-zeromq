@@ -3,6 +3,8 @@ import Config from "./Config";
 import ExpiryMap from "./Utils/ExpiryMap";
 import { NonceMap } from "./Utils/NonceMap";
 
+export const RESPONSE_CACHE_EXPIRED: string = "ZMQ_RESPONSE ERROR: MESSAGE NOT IN CACHE";
+
 export class ZMQResponse
 {
     private readonly mCachedRequests: ExpiryMap<string, string | Promise<string>>;
@@ -66,8 +68,7 @@ export class ZMQResponse
         }
         else
         {
-            // TODO: RESPOND CACHE_EXPIRED_ERROR
-            throw new Error("CACHE EXPIRED IN ZMQ_RESPONSE");
+            this.mRouter.send([routing_id, nonce, RESPONSE_CACHE_EXPIRED]);
         }
     }
 
