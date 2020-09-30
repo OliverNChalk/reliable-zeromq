@@ -153,12 +153,11 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
     t.deepEqual(lSendMock.getCall(lRouterSendCalls - 1).args[0], ["sender", "2", "this should not throw response"]);
 
     // Test LowestUnseenNonce garbage cleaning
-    t.is(lResponse["mSeenMessages"].get("unique_sender_id")!.HighestConsecutiveNonce, 3);
-    t.is(lResponse["mSeenMessages"].get("unique_sender_id")!.SeenNonces.get(0), undefined);
-    t.is(lResponse["mSeenMessages"].get("unique_sender_id")!.SeenNonces.get(1), undefined);
-    t.is(lResponse["mSeenMessages"].get("unique_sender_id")!.SeenNonces.get(2), undefined);
-    t.is(lResponse["mSeenMessages"].get("unique_sender_id")!.SeenNonces.get(3), undefined);
-    t.is(lResponse["mSeenMessages"].get("unique_sender_id")!.SeenNonces.get(4), undefined);
+    t.is(lResponse["mSeenMessages"].get("unique_sender_id")!.Has(0), true);
+    t.is(lResponse["mSeenMessages"].get("unique_sender_id")!.Has(1), true);
+    t.is(lResponse["mSeenMessages"].get("unique_sender_id")!.Has(2), true);
+    t.is(lResponse["mSeenMessages"].get("unique_sender_id")!.Has(3), true);
+    t.is(lResponse["mSeenMessages"].get("unique_sender_id")!.Has(4), false);
 
     lResponse.Close();
 });
