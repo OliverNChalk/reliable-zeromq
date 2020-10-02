@@ -3,7 +3,7 @@ import uniqid from "uniqid";
 import * as zmq from "zeromq";
 import Config from "./Config";
 import { DEFAULT_ZMQ_REQUEST_ERROR_HANDLERS, TZMQRequestErrorHandlers } from "./Errors";
-import { CancelDelay } from "./Utils/Delay";
+import { CancellableDelay } from "./Utils/Delay";
 import { RESPONSE_CACHE_EXPIRED } from "./ZMQResponse";
 
 const RESPONSE_TIMEOUT: number = 500;   // 500ms   (this includes computation time on the sync wrapped services)
@@ -42,7 +42,7 @@ export class ZMQRequest
     private mRequestNonce: number = 0;
     private readonly mRoundTripMax: number;
     private readonly mSendQueue: Queue<TSendRequest> = new Queue();
-    private readonly mCancelDelay: CancelDelay = new CancelDelay();
+    private readonly mCancellableDelay: CancellableDelay = new CancellableDelay();
 
     public constructor(aReceiverEndpoint: string, aErrorHandlers?: TZMQRequestErrorHandlers)
     {
@@ -81,12 +81,12 @@ export class ZMQRequest
     private async ManageRequest(aRequestId: number, aRequest: TRequestBody): Promise<void>
     {
         const lMaximumSendTime: number = Date.now() + this.mRoundTripMax;
-        await this.mCancelDelay.Create(RESPONSE_TIMEOUT);
+        await this.mCancellableDelay.Create(RESPONSE_TIMEOUT);
 
         while (this.mPendingRequests.has(aRequestId) && Date.now() < lMaximumSendTime)
         {
             await this.SendMessage(aRequest);
-            await this.mCancelDelay.Create(RESPONSE_TIMEOUT);
+            await this.mCancellableDelay.Create(RESPONSE_TIMEOUT);
         }
 
         this.AssertRequestProcessed(aRequestId, aRequest);
@@ -176,7 +176,7 @@ export class ZMQRequest
         this.mDealer.close();
         this.mDealer = undefined!;
 
-        this.mCancelDelay.Clear();
+        this.mCancellableDelay.Clear();
     }
 
     public async Send(aData: string): Promise<TRequestResponse>
