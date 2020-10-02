@@ -1,5 +1,5 @@
 import { PerfTest } from "simple-perf";
-import { CancellableDelay, Delay } from "../../Src/Utils/Delay";
+import { CancelDelay, CancellableDelay, Delay, ICancellableDelay } from "../../Src/Utils/Delay";
 
 function SynchronousDelay(): Promise<void>
 {
@@ -28,31 +28,60 @@ async function SynchronousDelay25_000(): Promise<void>
     await Promise.all(lPromise);
 }
 
-function SynchronousCancellableDelay(): Promise<void>
+function SynchronousCancelDelay(): Promise<void>
+{
+    return new CancelDelay().Create(0);
+}
+
+async function SynchronousCancelDelay1_000(): Promise<void>
+{
+    const lCancelDelay: CancelDelay = new CancelDelay();
+    const lPromise: Promise<void>[] = [];
+    for (let i: number = 0; i < 1_000; ++i)
+    {
+        lPromise.push(lCancelDelay.Create(0));
+    }
+
+    await Promise.all(lPromise);
+}
+
+async function SynchronousCancelDelay25_000(): Promise<void>
+{
+    const lCancelDelay: CancelDelay = new CancelDelay();
+    const lPromise: Promise<void>[] = [];
+    for (let i: number = 0; i < 25_000; ++i)
+    {
+        lPromise.push(lCancelDelay.Create(0));
+    }
+
+    await Promise.all(lPromise);
+}
+
+function SynchronousCancellableDelay(): ICancellableDelay
 {
     return CancellableDelay(0);
 }
 
 async function SynchronousCancellableDelay1_000(): Promise<void>
 {
-    const lPromise: Promise<void>[] = [];
+    const lPromise: ICancellableDelay[] = [];
     for (let i: number = 0; i < 1_000; ++i)
     {
         lPromise.push(CancellableDelay(0));
     }
 
-    await Promise.all(lPromise);
+    await Promise.all(lPromise as any);
 }
 
 async function SynchronousCancellableDelay25_000(): Promise<void>
 {
-    const lPromise: Promise<void>[] = [];
+    const lPromise: ICancellableDelay[] = [];
     for (let i: number = 0; i < 25_000; ++i)
     {
         lPromise.push(CancellableDelay(0));
     }
 
-    await Promise.all(lPromise);
+    await Promise.all(lPromise as any);
 }
 
 const lBenchmarks: PerfTest[] =
@@ -77,6 +106,30 @@ const lBenchmarks: PerfTest[] =
         {
             Name: "Delay > Synchronous [ 25000 ]",
             Function: SynchronousDelay25_000,
+            FunctionReturnsPromise: true,
+            Console: true,
+        },
+    ),
+    new PerfTest(
+        {
+            Name: "CancelDelay > Synchronous [ 1 ]",
+            Function: SynchronousCancelDelay,
+            FunctionReturnsPromise: true,
+            Console: true,
+        },
+    ),
+    new PerfTest(
+        {
+            Name: "CancelDelay > Synchronous [ 1000 ]",
+            Function: SynchronousCancelDelay1_000,
+            FunctionReturnsPromise: true,
+            Console: true,
+        },
+    ),
+    new PerfTest(
+        {
+            Name: "CancelDelay > Synchronous [ 25000 ]",
+            Function: SynchronousCancelDelay25_000,
             FunctionReturnsPromise: true,
             Console: true,
         },

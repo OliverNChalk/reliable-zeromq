@@ -3,7 +3,7 @@ import uniqid from "uniqid";
 import * as zmq from "zeromq";
 import Config from "./Config";
 import { DEFAULT_ZMQ_REQUEST_ERROR_HANDLERS, TZMQRequestErrorHandlers } from "./Errors";
-import { CancellableDelay, ICancellableDelay } from "./Utils/Delay";
+import { CancelDelay } from "./Utils/Delay";
 import { RESPONSE_CACHE_EXPIRED } from "./ZMQResponse";
 
 const RESPONSE_TIMEOUT: number = 500;   // 500ms   (this includes computation time on the sync wrapped services)
@@ -38,11 +38,11 @@ export class ZMQRequest
     private readonly mEndpoint: string;
     private readonly mErrorHandlers: TZMQRequestErrorHandlers;
     private readonly mOurUniqueId: string;
-    private readonly mPendingDelays: Map<number, ICancellableDelay> = new Map();
     private readonly mPendingRequests: Map<number, TResolve> = new Map();
     private mRequestNonce: number = 0;
     private readonly mRoundTripMax: number;
     private readonly mSendQueue: Queue<TSendRequest> = new Queue();
+    private readonly mCancelDelay: CancelDelay = new CancelDelay();
 
     public constructor(aReceiverEndpoint: string, aErrorHandlers?: TZMQRequestErrorHandlers)
     {
@@ -81,12 +81,12 @@ export class ZMQRequest
     private async ManageRequest(aRequestId: number, aRequest: TRequestBody): Promise<void>
     {
         const lMaximumSendTime: number = Date.now() + this.mRoundTripMax;
-        await this.WaitResponseTimeout(aRequestId);
+        await this.mCancelDelay.Create(RESPONSE_TIMEOUT);
 
         while (this.mPendingRequests.has(aRequestId) && Date.now() < lMaximumSendTime)
         {
             await this.SendMessage(aRequest);
-            await this.WaitResponseTimeout(aRequestId);
+            await this.mCancelDelay.Create(RESPONSE_TIMEOUT);
         }
 
         this.AssertRequestProcessed(aRequestId, aRequest);
@@ -170,26 +170,13 @@ export class ZMQRequest
         });
     }
 
-    private async WaitResponseTimeout(aRequestId: number): Promise<void>
-    {
-        const lDelay: ICancellableDelay = CancellableDelay(RESPONSE_TIMEOUT);
-        this.mPendingDelays.set(aRequestId, lDelay);
-
-        await lDelay;
-
-        this.mPendingDelays.delete(aRequestId);
-    }
-
     public Close(): void
     {
         this.mDealer.linger = 0;
         this.mDealer.close();
         this.mDealer = undefined!;
 
-        this.mPendingDelays.forEach((aDelay: ICancellableDelay) =>
-        {
-            aDelay.Resolve();
-        });
+        this.mCancelDelay.Clear();
     }
 
     public async Send(aData: string): Promise<TRequestResponse>
