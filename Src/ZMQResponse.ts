@@ -86,18 +86,33 @@ export class ZMQResponse
         this.mRouter.bind(this.mEndpoint)
             .then(() =>
             {
-                this.ReceiveLoop();
+                this.PollZmqReceive();
             });
     }
 
-    private async ReceiveLoop(): Promise<void>
+    private PollZmqReceive(): void
     {
-        for await (const [routing_id, sender_uid, nonce, msg] of this.mRouter)
-        {
-            const lSenderUID: string = sender_uid.toString();
-            this.InitRequesterIfEmpty(lSenderUID);
-            this.HandleRequest(sender_uid, nonce, msg, routing_id);
-        }
+        this.mRouter.receive()
+            .then((aBuffers: Buffer[]) =>
+            {
+                if (this.mRouter)
+                {
+                    const [routing_id, sender_uid, nonce, msg] = aBuffers;
+                    const lSenderUID: string = sender_uid.toString();
+
+                    this.InitRequesterIfEmpty(lSenderUID);
+                    this.HandleRequest(sender_uid, nonce, msg, routing_id);
+
+                    this.PollZmqReceive();
+                }
+            })
+            .catch((aReason: any) =>
+            {
+                if (this.mRouter)
+                {
+                    throw aReason;
+                }
+            });
     }
 
     private RequestInCache(aSenderUID: string, aNonce: number): boolean

@@ -8,12 +8,10 @@ import * as zmq from "zeromq";
 import { ZMQResponse } from "../../Src/ZMQResponse";
 import { YieldToEventLoop } from "../Helpers/AsyncTools";
 
-type TAsyncIteratorResult = { value: any; done: boolean };
 type TTestContext =
 {
     ResponderEndpoint: string;
     RouterMock: MockManager<zmq.Router>;
-    SUTCallback: (aMessage: TAsyncIteratorResult) => void;
     SendToReceiver: (aMessage: string[]) => void;
 };
 
@@ -26,31 +24,28 @@ test.before((t: ExecutionContext<TTestContext>): void =>
 
 test.beforeEach((t: ExecutionContext<TTestContext>): void =>
 {
-    // tslint:disable-next-line:typedef
-    const lNewIterator = (() =>
+    let lPendingReceive: any = undefined;
+    // let lPendingReject: any = undefined;
+    function NewReceivePromise(): Promise<Buffer[]>
     {
-        return {
-            async next(): Promise<TAsyncIteratorResult>
-            {
-                return new Promise((resolve: (aValue: TAsyncIteratorResult) => void): void =>
-                {
-                    t.context.SUTCallback = resolve;
-                });
-            },
-        };
-    })();
+        return new Promise((aResolve: (aValue: Buffer[]) => void, aReject: () => void): void =>
+        {
+            lPendingReceive = aResolve;
+            // lPendingReject = aReject;
+        });
+    }
 
     const lMockManager: MockManager<zmq.Router> = ImportMock.mockClass<zmq.Router>(zmq, "Router");
-    // @ts-ignore
-    lMockManager.mock(Symbol.asyncIterator, lNewIterator);
+    const lMockedReceive: sinon.SinonStub = lMockManager.mock("receive");
+    lMockedReceive.callsFake(NewReceivePromise);
 
-    t.context = {
+    t.context =
+    {
         ResponderEndpoint: "tcp://127.0.0.1:3001",
         RouterMock: lMockManager,
-        SUTCallback: null!,
-        SendToReceiver: (aMessage: string[]): void =>
+        SendToReceiver: (aStrings: string[]): void =>
         {
-            t.context.SUTCallback({ value: aMessage, done: false });
+              lPendingReceive(aStrings.map((aString: string) => Buffer.from(aString)));
         },
     };
 });
@@ -89,7 +84,10 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
     let lRouterSendCalls: number = 0;
     t.is(lSendMock.callCount, ++lRouterSendCalls);
     t.is(lResponse["mCachedRequests"].size, 1);
-    t.deepEqual(lSendMock.getCall(lRouterSendCalls - 1).args[0], ["sender", "0", "world"]);
+    t.deepEqual(
+        lSendMock.getCall(lRouterSendCalls - 1).args[0],
+        [Buffer.from("sender"), Buffer.from("0"), "world"], // Responses from responseHandler are strings, rest are buffers
+    );
 
     lResponder = async(aMsg: string): Promise<string> => aMsg + " response";
     t.context.SendToReceiver([
@@ -102,7 +100,10 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
 
     t.is(lSendMock.callCount, ++lRouterSendCalls);
     t.is(lResponse["mCachedRequests"].size, 2);
-    t.deepEqual(lSendMock.getCall(lRouterSendCalls - 1).args[0], ["sender", "1", "this should not throw response"]);
+    t.deepEqual(
+        lSendMock.getCall(lRouterSendCalls - 1).args[0],
+        [Buffer.from("sender"), Buffer.from("1"), "this should not throw response"],
+    );
 
     t.context.SendToReceiver([
         "sender",
@@ -114,7 +115,10 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
 
     t.is(lSendMock.callCount, ++lRouterSendCalls);
     t.is(lResponse["mCachedRequests"].size, 2);
-    t.deepEqual(lSendMock.getCall(lRouterSendCalls - 1).args[0], ["sender", "1", "this should not throw response"]);
+    t.deepEqual(
+        lSendMock.getCall(lRouterSendCalls - 1).args[0],
+        [Buffer.from("sender"), Buffer.from("1"), "this should not throw response"],
+    );
 
     t.context.SendToReceiver([
         "sender",
@@ -126,7 +130,10 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
 
     t.is(lSendMock.callCount, ++lRouterSendCalls);
     t.is(lResponse["mCachedRequests"].size, 2);
-    t.deepEqual(lSendMock.getCall(lRouterSendCalls - 1).args[0], ["sender", "1", "this should not throw response"]);
+    t.deepEqual(
+        lSendMock.getCall(lRouterSendCalls - 1).args[0],
+        [Buffer.from("sender"), Buffer.from("1"), "this should not throw response"],
+    );
 
     t.context.SendToReceiver([
         "sender",
@@ -138,7 +145,10 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
 
     t.is(lSendMock.callCount, ++lRouterSendCalls);
     t.is(lResponse["mCachedRequests"].size, 3);
-    t.deepEqual(lSendMock.getCall(lRouterSendCalls - 1).args[0], ["sender", "3", "this should not throw response"]);
+    t.deepEqual(
+        lSendMock.getCall(lRouterSendCalls - 1).args[0],
+        [Buffer.from("sender"), Buffer.from("3"), "this should not throw response"],
+    );
 
     t.context.SendToReceiver([
         "sender",
@@ -150,7 +160,10 @@ test.serial("Start, Receive, Close", async(t: ExecutionContext<TTestContext>): P
 
     t.is(lSendMock.callCount, ++lRouterSendCalls);
     t.is(lResponse["mCachedRequests"].size, 4);
-    t.deepEqual(lSendMock.getCall(lRouterSendCalls - 1).args[0], ["sender", "2", "this should not throw response"]);
+    t.deepEqual(
+        lSendMock.getCall(lRouterSendCalls - 1).args[0],
+        [Buffer.from("sender"), Buffer.from("2"), "this should not throw response"],
+    );
 
     // Test LowestUnseenNonce garbage cleaning
     t.is(lResponse["mSeenMessages"].get("unique_sender_id")!.Has(0), true);
