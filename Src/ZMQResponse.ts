@@ -94,9 +94,12 @@ export class ZMQResponse
     {
         for await (const [routing_id, sender_uid, nonce, msg] of this.mRouter)
         {
-            const lSenderUID: string = sender_uid.toString();
-            this.InitRequesterIfEmpty(lSenderUID);
-            this.HandleRequest(sender_uid, nonce, msg, routing_id);
+            if (this.mRouter)
+            {
+                const lSenderUID: string = sender_uid.toString();
+                this.InitRequesterIfEmpty(lSenderUID);
+                this.HandleRequest(sender_uid, nonce, msg, routing_id);
+            }
         }
     }
 

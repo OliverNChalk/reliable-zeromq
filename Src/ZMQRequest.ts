@@ -34,6 +34,7 @@ export type TRequestTimeOut =
 
 export class ZMQRequest
 {
+    private readonly mCancellableDelay: CancellableDelay = new CancellableDelay();
     private mDealer!: zmq.Dealer;
     private readonly mEndpoint: string;
     private readonly mErrorHandlers: TZMQRequestErrorHandlers;
@@ -42,7 +43,6 @@ export class ZMQRequest
     private mRequestNonce: number = 0;
     private readonly mRoundTripMax: number;
     private readonly mSendQueue: Queue<TSendRequest> = new Queue();
-    private readonly mCancellableDelay: CancellableDelay = new CancellableDelay();
 
     public constructor(aReceiverEndpoint: string, aErrorHandlers?: TZMQRequestErrorHandlers)
     {
@@ -112,27 +112,35 @@ export class ZMQRequest
         }
     }
 
+    private ProcessZmqReceive(nonce: Buffer, msg: Buffer): void
+    {
+        // Forward requests to the registered handler
+        const lRequestNonce: number = Number(nonce.toString());
+        const lMessage: string = msg.toString();
+
+        const lMessageCaller: TResolve | undefined = this.mPendingRequests.get(lRequestNonce);
+
+        if (this.IsErrorMessage(lMessage))
+        {
+            this.mErrorHandlers.CacheError({
+                Endpoint: this.mEndpoint,
+                MessageNonce: Number(nonce),
+            });
+        }
+        else if (lMessageCaller)
+        {
+            lMessageCaller(msg.toString());
+            this.mPendingRequests.delete(lRequestNonce);
+        }
+    }
+
     private async ResponseHandler(): Promise<void>
     {
         for await (const [nonce, msg] of this.mDealer)
         {
-            // Forward requests to the registered handler
-            const lRequestNonce: number = Number(nonce.toString());
-            const lMessage: string = msg.toString();
-
-            const lMessageCaller: TResolve | undefined = this.mPendingRequests.get(lRequestNonce);
-
-            if (this.IsErrorMessage(lMessage))
+            if (this.mDealer)
             {
-                this.mErrorHandlers.CacheError({
-                    Endpoint: this.mEndpoint,
-                    MessageNonce: Number(nonce),
-                });
-            }
-            else if (lMessageCaller)
-            {
-                lMessageCaller(msg.toString());
-                this.mPendingRequests.delete(lRequestNonce);
+                this.ProcessZmqReceive(nonce, msg);
             }
         }
     }

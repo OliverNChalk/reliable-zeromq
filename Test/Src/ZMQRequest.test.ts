@@ -151,10 +151,11 @@ test.serial("Degraded Connection", async(t: ExecutionContext<TTestContext>): Pro
     await YieldToEventLoop();
 
     t.context.SendToReceiver(lSecondResponse);
-    await YieldToEventLoop();   // Necessary to allow AsyncIterator.next() to be called and SendToReceiver to be setup
+    await YieldToEventLoop();
     t.context.SendToReceiver(lSecondResponse);
-    await YieldToEventLoop();   // Necessary to allow AsyncIterator.next() to be called and SendToReceiver to be setup
+    await YieldToEventLoop();
     t.context.SendToReceiver(lSecondResponse);
+    await YieldToEventLoop();
 
     t.is(await lSecondRequest, lSecondResponse[1]);
 
