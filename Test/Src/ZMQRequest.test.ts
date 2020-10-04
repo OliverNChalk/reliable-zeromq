@@ -9,14 +9,14 @@ import JSONBigInt from "../../Src/Utils/JSONBigInt";
 import { ERequestBody, TRequestResponse, ZMQRequest } from "../../Src/ZMQRequest";
 import { YieldToEventLoop } from "../Helpers/AsyncTools";
 
-type TAsyncIteratorResult = { value: any; done: boolean };
 type TTestContext =
 {
     ResponderEndpoint: string;
     TestData: any[];
     DealerMock: MockManager<zmq.Dealer>;
-    SUTCallback: (aMessage: TAsyncIteratorResult) => void;
-    SendToReceiver: (aMessage: string[]) => void;
+    PendingReceive: (aBuffers: Buffer[]) => void;
+    PendingReject: (aReason: any) => void;
+    SendToReceive: (aStrings: string[]) => void;
 };
 
 const test: TestInterface<TTestContext> = anyTest as TestInterface<TTestContext> ;
@@ -28,23 +28,18 @@ test.before((t: ExecutionContext<TTestContext>): void =>
 
 test.beforeEach((t: ExecutionContext<TTestContext>): void =>
 {
-    // tslint:disable-next-line:typedef
-    const lNewIterator = (() =>
+    function NewReceivePromise(): Promise<Buffer[]>
     {
-        return {
-            async next(): Promise<TAsyncIteratorResult>
-            {
-                return new Promise((resolve: (aValue: TAsyncIteratorResult) => void): void =>
-                {
-                    t.context.SUTCallback = resolve;
-                });
-            },
-        };
-    })();
+        return new Promise((aResolve: (aValue: Buffer[]) => void, aReject: () => void): void =>
+        {
+            t.context.PendingReceive = aResolve;
+            t.context.PendingReject = aReject;
+        });
+    }
 
     const lMockManager: MockManager<zmq.Dealer> = ImportMock.mockClass<zmq.Dealer>(zmq, "Dealer");
-    // @ts-ignore
-    lMockManager.mock(Symbol.asyncIterator, lNewIterator);
+    const lMockedReceive: sinon.SinonStub = lMockManager.mock("receive");   // TODO: Try a getter as a way to return fresh promises
+    lMockedReceive.callsFake(NewReceivePromise);
 
     t.context = {
         ResponderEndpoint: "tcp://127.0.0.1:3000",
@@ -60,10 +55,11 @@ test.beforeEach((t: ExecutionContext<TTestContext>): void =>
             },
         ],
         DealerMock: lMockManager,
-        SUTCallback: null!,
-        SendToReceiver: (aMessage: string[]): void =>
+        PendingReceive: null!,
+        PendingReject: null!,
+        SendToReceive: (aStrings: string[]): void =>
         {
-            t.context.SUTCallback({ value: aMessage, done: false });
+            t.context.PendingReceive(aStrings.map((aString: string) => Buffer.from(aString, "utf8")));
         },
     };
 });
@@ -102,7 +98,7 @@ test.serial("Start, Send, Receive, Close", async(t: ExecutionContext<TTestContex
         "0",
         "dummy message",
     ];
-    t.context.SendToReceiver(lResponse);
+    t.context.PendingReceive(lResponse.map((aValue: string) => Buffer.from(aValue, "utf8")));
 
     const lPromiseResult: TRequestResponse = await lRequestPromise;
     t.deepEqual(lPromiseResult, lResponse[1]);
@@ -132,7 +128,7 @@ test.serial("Degraded Connection", async(t: ExecutionContext<TTestContext>): Pro
     await YieldToEventLoop();   // Sinon timers don't seem super reliable at triggering timeouts
     clock.tick(501);
     await YieldToEventLoop();
-    t.context.SendToReceiver(lResponse);
+    t.context.SendToReceive(lResponse);
 
     const lPromiseResult: TRequestResponse = await lRequestPromise;
 
@@ -150,11 +146,11 @@ test.serial("Degraded Connection", async(t: ExecutionContext<TTestContext>): Pro
     clock.tick(501);
     await YieldToEventLoop();
 
-    t.context.SendToReceiver(lSecondResponse);
+    t.context.SendToReceive(lSecondResponse);
     await YieldToEventLoop();   // Necessary to allow AsyncIterator.next() to be called and SendToReceiver to be setup
-    t.context.SendToReceiver(lSecondResponse);
+    t.context.SendToReceive(lSecondResponse);
     await YieldToEventLoop();   // Necessary to allow AsyncIterator.next() to be called and SendToReceiver to be setup
-    t.context.SendToReceiver(lSecondResponse);
+    t.context.SendToReceive(lSecondResponse);
 
     t.is(await lSecondRequest, lSecondResponse[1]);
 
@@ -171,8 +167,9 @@ test.serial("Error: Maximum Latency", async(t: ExecutionContext<TTestContext>): 
     lDealerStub.mock("connect", undefined);
 
     const lFirstResponsePromise: Promise<TRequestResponse> = lRequester.Send(JSONBigInt.Stringify("hello"));
+    await YieldToEventLoop();
 
-    t.context.SendToReceiver([JSONBigInt.Stringify(0), "world"]);
+    t.context.SendToReceive([JSONBigInt.Stringify(0), "world"]);
 
     clock.tick(500);
 

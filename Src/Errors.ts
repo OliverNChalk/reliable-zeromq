@@ -34,8 +34,8 @@ export type TZMQSubscriberErrorHandlers =
 
 export const DEFAULT_ZMQ_SUBSCRIBER_ERROR_HANDLERS: TZMQSubscriberErrorHandlers =
 {
-    CacheError: (aError: TPublisherCacheError): void => { throw aError; },
-    DroppedMessageWarn: (aWarning: TDroppedMessageWarning): void => {},
+    CacheError: (aError: TPublisherCacheError): void => { throw aError; },  // Throw unhandled warning
+    DroppedMessageWarn: (aWarning: TDroppedMessageWarning): void => {},     // Suppress warns
 };
 
 // ZMQRequest Errors
