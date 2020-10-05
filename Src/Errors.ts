@@ -45,11 +45,6 @@ export const DEFAULT_ZMQ_SUBSCRIBER_ERROR_HANDLERS: TZMQSubscriberErrorHandlers 
 };
 
 // ZMQRequest Errors
-export type TResponseCacheError =
-{
-    Endpoint: string;
-    MessageNonce: number;
-};
 
 export type TRequestHwmWarning =
 {
@@ -60,12 +55,10 @@ export type TRequestHwmWarning =
 
 export type TZMQRequestErrorHandlers =
 {
-    CacheError: (aError: TResponseCacheError) => void;
     HighWaterMarkWarning: (aWarning: TRequestHwmWarning) => void;
 };
 
 export const DEFAULT_ZMQ_REQUEST_ERROR_HANDLERS: TZMQRequestErrorHandlers =
 {
-    CacheError: (aError: TResponseCacheError): void => { throw aError; },
     HighWaterMarkWarning: (aWarning: TRequestHwmWarning): void => {},
 };

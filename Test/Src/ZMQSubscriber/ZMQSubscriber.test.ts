@@ -8,6 +8,7 @@ import { TDroppedMessageWarning, TPublisherCacheError } from "../../../Src/Error
 import JSONBigInt from "../../../Src/Utils/JSONBigInt";
 import { EMessageType, PUBLISHER_CACHE_EXPIRED, TRecoveryResponse } from "../../../Src/ZMQPublisher";
 import * as ZMQRequest from "../../../Src/ZMQRequest";
+import { ERequestResponse } from "../../../Src/ZMQRequest";
 import { TSubscriptionEndpoints, ZMQSubscriber } from "../../../Src/ZMQSubscriber/ZMQSubscriber";
 import { YieldToEventLoop } from "../../Helpers/AsyncTools";
 import { DUMMY_ENDPOINTS } from "../../Helpers/DummyEndpoints.data";
@@ -384,8 +385,14 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
         [PUBLISHER_CACHE_EXPIRED] as any,
     ];
     lSendMock
-        .onCall(0).returns(Promise.resolve(JSONBigInt.Stringify(lStatusResponse)))
-        .onCall(1).returns(Promise.resolve(JSONBigInt.Stringify(lWeatherResponse)))
+        .onCall(0).returns(Promise.resolve({
+            ResponseType: ERequestResponse.SUCCESS,
+            Response: JSONBigInt.Stringify(lStatusResponse),
+        }))
+        .onCall(1).returns(Promise.resolve({
+            ResponseType: ERequestResponse.SUCCESS,
+            Response: JSONBigInt.Stringify(lWeatherResponse),
+        }))
         .onCall(2).returns(Promise.resolve(
             {
                 RequestId: 1337,

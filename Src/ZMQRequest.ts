@@ -2,21 +2,25 @@ import { Queue } from "typescript-collections";
 import uniqid from "uniqid";
 import * as zmq from "zeromq";
 import Config from "./Config";
-import { DEFAULT_ZMQ_REQUEST_ERROR_HANDLERS, TZMQRequestErrorHandlers } from "./Errors";
+import {
+    DEFAULT_ZMQ_REQUEST_ERROR_HANDLERS,
+    TRequestHwmWarning,
+    TZMQRequestErrorHandlers,
+} from "./Errors";
 import { CancellableDelay } from "./Utils/Delay";
 import { RESPONSE_CACHE_EXPIRED } from "./ZMQResponse";
 
 const RESPONSE_TIMEOUT: number = 500;   // 500ms   (this includes computation time on the sync wrapped services)
 
-type TResolve = (aResult: TRequestResponse) => void;
+export type TRequestBody = [requesterId: string, nonce: string, message: string];
+type TRequestResolver = (aResult: TRequestResponse) => void;
 
-type TSendRequest =
+type TZmqSendRequest =
 {
     Request: TRequestBody;
     Resolve: () => void;
 };
 
-type TRequestBody = [requesterId: string, nonce: string, message: string];
 export enum ERequestBody
 {
     RequesterId,
@@ -24,13 +28,32 @@ export enum ERequestBody
     Message,
 }
 
-export type TRequestResponse = string | TRequestTimeOut;
+export enum ERequestResponse
+{
+    SUCCESS = "SUCCESS",
+    TIMEOUT = "TIMEOUT",
+    CACHE_ERROR = "CACHE_ERROR",
+}
 
+export type TSuccessfulRequest =
+{
+    ResponseType: ERequestResponse.SUCCESS;
+    Response: string;
+};
 export type TRequestTimeOut =
 {
-    RequestId: number;
+    ResponseType: ERequestResponse.TIMEOUT;
+    MessageNonce: number;
     RequestBody: TRequestBody;
 };
+export type TResponseCacheError =
+{
+    ResponseType: ERequestResponse.CACHE_ERROR;
+    Endpoint: string;
+    MessageNonce: number;
+};
+
+export type TRequestResponse = TSuccessfulRequest | TRequestTimeOut | TResponseCacheError;
 
 export class ZMQRequest
 {
@@ -39,11 +62,11 @@ export class ZMQRequest
     private readonly mEndpoint: string;
     private readonly mErrorHandlers: TZMQRequestErrorHandlers;
     private readonly mOurUniqueId: string;
-    private readonly mPendingRequests: Map<number, TResolve> = new Map();
+    private readonly mPendingRequests: Map<number, TRequestResolver> = new Map();
     private mRequestNonce: number = 0;
     private readonly mRoundTripMax: number;
     private mSafeToSend: boolean = true;
-    private readonly mSendQueue: Queue<TSendRequest> = new Queue();
+    private readonly mSendQueue: Queue<TZmqSendRequest> = new Queue();
 
     public constructor(aReceiverEndpoint: string, aErrorHandlers?: TZMQRequestErrorHandlers)
     {
@@ -62,12 +85,13 @@ export class ZMQRequest
 
     private AssertRequestProcessed(aRequestId: number, aRequest: TRequestBody): void
     {
-        const lResolver: TResolve | undefined = this.mPendingRequests.get(aRequestId);  // TODO: Review why this is called assert when it doesnt assert
+        const lResolver: TRequestResolver | undefined = this.mPendingRequests.get(aRequestId);  // TODO: Review why this is called assert when it doesnt assert
         if (lResolver)
         {
             lResolver(
                 {
-                    RequestId: aRequestId,
+                    ResponseType: ERequestResponse.TIMEOUT,
+                    MessageNonce: aRequestId,
                     RequestBody: aRequest,
                 },
             );
@@ -78,11 +102,13 @@ export class ZMQRequest
     {
         if (aError && aError.code && aError.code === "EAGAIN")
         {
-            this.mErrorHandlers.HighWaterMarkWarning({
+            const lHighWaterMarkWarning: TRequestHwmWarning =
+            {
                 Requester: aRequest[ERequestBody.RequesterId],
                 Nonce: Number(aRequest[ERequestBody.Nonce]),
                 Message: aRequest[ERequestBody.Message],
-            });
+            };
+            this.mErrorHandlers.HighWaterMarkWarning(lHighWaterMarkWarning);
         }
         else
         {
@@ -120,7 +146,7 @@ export class ZMQRequest
 
     private async ProcessSend(): Promise<void>
     {
-        const lNextSend: TSendRequest | undefined = this.mSendQueue.peek();
+        const lNextSend: TZmqSendRequest | undefined = this.mSendQueue.peek();
 
         if (lNextSend && this.mSafeToSend)
         {
@@ -149,18 +175,26 @@ export class ZMQRequest
         const lRequestNonce: number = Number(nonce.toString());
         const lMessage: string = msg.toString();
 
-        const lMessageCaller: TResolve | undefined = this.mPendingRequests.get(lRequestNonce);
+        const lMessageCaller: TRequestResolver | undefined = this.mPendingRequests.get(lRequestNonce);
 
         if (this.IsErrorMessage(lMessage))
         {
-            this.mErrorHandlers.CacheError({
-                Endpoint: this.mEndpoint,
-                MessageNonce: Number(nonce),
-            });
+            lMessageCaller && lMessageCaller(
+                {
+                        ResponseType: ERequestResponse.CACHE_ERROR,
+                        Endpoint: this.mEndpoint,
+                        MessageNonce: Number(nonce),
+                },
+            );
         }
         else if (lMessageCaller)
         {
-            lMessageCaller(msg.toString());
+            lMessageCaller(
+                {
+                    ResponseType: ERequestResponse.SUCCESS,
+                    Response: msg.toString(),
+                },
+            );
             this.mPendingRequests.delete(lRequestNonce);
         }
     }
@@ -203,7 +237,7 @@ export class ZMQRequest
         await this.QueueSend(aRequest);   // Can potentially move this inside of ManageRequest loop
         this.ManageRequest(lRequestId, aRequest);
 
-        return new Promise<TRequestResponse>((aResolve: TResolve): void =>
+        return new Promise<TRequestResponse>((aResolve: TRequestResolver): void =>
         {
             this.mPendingRequests.set(lRequestId, aResolve);
         });
@@ -220,7 +254,6 @@ export class ZMQRequest
 
     public async Send(aData: string): Promise<TRequestResponse>
     {
-        // TODO: Build a way to safely send multiple requests without creating a backlog
         const lRequestId: number = this.mRequestNonce++;
         const lRequest: TRequestBody =
         [

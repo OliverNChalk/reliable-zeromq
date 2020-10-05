@@ -9,10 +9,10 @@ import {
     TRecoveryRequest,
     TRecoveryResponse,
 } from "../ZMQPublisher";
-import { TRequestResponse, ZMQRequest } from "../ZMQRequest";
+import { ERequestResponse, TRequestResponse, ZMQRequest } from "../ZMQRequest";
 import TopicEntry from "./TopicEntry";
 
-export type SubscriptionCallback = (aMessage: string) => void;
+export type TSubscriptionCallback = (aMessage: string) => void;
 
 export type TEndpointEntry =
 {
@@ -82,7 +82,7 @@ export class ZMQSubscriber
     private CallSubscribers(aEndpoint: TSubscriptionEndpoints, aTopic: string, aMessage: string): void
     {
         this.mEndpoints.get(aEndpoint.PublisherAddress)!.TopicEntries.get(aTopic)!.Callbacks.forEach(
-            (aCallback: SubscriptionCallback): void =>
+            (aCallback: TSubscriptionCallback): void =>
             {
                 aCallback(aMessage);
             },
@@ -100,7 +100,7 @@ export class ZMQSubscriber
         );
     }
 
-    private EmitMissedMessageError(aTopic: string, aNonces: number[]): void
+    private EmitDroppedMessageWarn(aTopic: string, aNonces: number[]): void
     {
         this.mErrorHandlers.DroppedMessageWarn(
             {
@@ -171,16 +171,16 @@ export class ZMQSubscriber
     ): Promise<void>
     {
         // TODO: Check for possibility that a messages gets played twice, I think I handled this via nonce...
-        this.EmitMissedMessageError(aTopic, aMessageIds);
+        this.EmitDroppedMessageWarn(aTopic, aMessageIds);
         const lFormattedRequest: TRecoveryRequest = [aTopic, ...aMessageIds];   // PERF: Array manipulation
 
         const lEndpointEntry: TEndpointEntry = this.mEndpoints.get(aEndpoint.PublisherAddress)!;
         const lMissingMessages: TRequestResponse
             = await lEndpointEntry.Requester.Send(JSONBigInt.Stringify(lFormattedRequest));
 
-        if (typeof lMissingMessages === "string")
+        if (lMissingMessages.ResponseType === ERequestResponse.SUCCESS)
         {
-            const lParsedMessages: TRecoveryResponse = JSONBigInt.Parse(lMissingMessages.toString());
+            const lParsedMessages: TRecoveryResponse = JSONBigInt.Parse(lMissingMessages.Response);
 
             for (let i: number = 0; i < lParsedMessages.length; ++i)
             {
@@ -199,7 +199,7 @@ export class ZMQSubscriber
         {
             for (let i: number = 0; i < aMessageIds.length; ++i)
             {
-                this.EmitCacheError(aEndpoint, aTopic, aMessageIds[i]);
+                this.EmitCacheError(aEndpoint, aTopic, aMessageIds[i]); // TODO: Timeout vs CacheError?
             }
         }
     }
@@ -215,7 +215,7 @@ export class ZMQSubscriber
         this.mSubscriptions.clear();
     }
 
-    public Subscribe(aEndpoint: TSubscriptionEndpoints, aTopic: string, aCallback: SubscriptionCallback): number
+    public Subscribe(aEndpoint: TSubscriptionEndpoints, aTopic: string, aCallback: TSubscriptionCallback): number
     {
         let lEndpoint: TEndpointEntry | undefined = this.mEndpoints.get(aEndpoint.PublisherAddress);
         if (!lEndpoint)

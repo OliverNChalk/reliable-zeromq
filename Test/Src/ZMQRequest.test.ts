@@ -6,7 +6,7 @@ import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
 import Config from "../../Src/Config";
 import JSONBigInt from "../../Src/Utils/JSONBigInt";
-import { ERequestBody, TRequestResponse, ZMQRequest } from "../../Src/ZMQRequest";
+import { ERequestBody, TRequestResponse, TSuccessfulRequest, ZMQRequest } from "../../Src/ZMQRequest";
 import { YieldToEventLoop } from "../Helpers/AsyncTools";
 
 type TAsyncIteratorResult = { value: any; done: boolean };
@@ -105,7 +105,7 @@ test.serial("Start, Send, Receive, Close", async(t: ExecutionContext<TTestContex
     t.context.SendToReceiver(lResponse);
 
     const lPromiseResult: TRequestResponse = await lRequestPromise;
-    t.deepEqual(lPromiseResult, lResponse[1]);
+    t.deepEqual((lPromiseResult as TSuccessfulRequest).Response, lResponse[1]);
 
     lRequester.Close();
 });
@@ -136,7 +136,7 @@ test.serial("Degraded Connection", async(t: ExecutionContext<TTestContext>): Pro
 
     const lPromiseResult: TRequestResponse = await lRequestPromise;
 
-    t.is(lPromiseResult, lResponse[1]);
+    t.is((lPromiseResult as TSuccessfulRequest).Response, lResponse[1]);
 
     const lSecondRequest: Promise<TRequestResponse> = lRequester.Send("MyTestDelayedResponse");
     const lSecondResponse: string[] =
@@ -157,7 +157,7 @@ test.serial("Degraded Connection", async(t: ExecutionContext<TTestContext>): Pro
     t.context.SendToReceiver(lSecondResponse);
     await YieldToEventLoop();
 
-    t.is(await lSecondRequest, lSecondResponse[1]);
+    t.is((await lSecondRequest as TSuccessfulRequest).Response, lSecondResponse[1]);
 
     lRequester.Close();
 });
@@ -177,7 +177,7 @@ test.serial("Error: Maximum Latency", async(t: ExecutionContext<TTestContext>): 
 
     clock.tick(500);
 
-    t.is(await lFirstResponsePromise, "world");
+    t.is((await lFirstResponsePromise as TSuccessfulRequest).Response, "world");
 
     const lFailedRequest: Promise<TRequestResponse> = lRequester.Send(JSONBigInt.Stringify("hello"));
     await YieldToEventLoop();
@@ -187,9 +187,13 @@ test.serial("Error: Maximum Latency", async(t: ExecutionContext<TTestContext>): 
 
     const lFailedResult: TRequestResponse = await lFailedRequest;
 
-    if (typeof lFailedResult !== "string")
+    if (typeof lFailedResult === "string")
     {
-        t.is(lFailedResult.RequestId, 1);
+        t.fail("lFailedRequest resolved to a string instead of TRequestTimeOut");
+    }
+    else if ("RequestBody" in lFailedResult)
+    {
+        t.is(lFailedResult.MessageNonce, 1);
         t.is(lFailedResult.RequestBody[ERequestBody.Nonce], "1");
         t.is(lFailedResult.RequestBody[ERequestBody.Message], "\"hello\"");
     }

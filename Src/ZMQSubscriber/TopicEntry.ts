@@ -1,10 +1,10 @@
-import { SubscriptionCallback, TSubscriptionEndpoints } from "./ZMQSubscriber";
+import { TSubscriptionCallback, TSubscriptionEndpoints } from "./ZMQSubscriber";
 
 type TRecoveryHandler = (aEndpoint: TSubscriptionEndpoints, aTopic: string, aMessageIds: number[]) => void;
 
 export default class TopicEntry
 {
-    private readonly mCallbacks: Map<number, SubscriptionCallback> = new Map();
+    private readonly mCallbacks: Map<number, TSubscriptionCallback> = new Map();
     private readonly mEndpoint: TSubscriptionEndpoints;
     private readonly mRecoveryHandler: TRecoveryHandler;
     private readonly mTopic: string;
@@ -17,7 +17,7 @@ export default class TopicEntry
         this.mTopic = aTopic;
     }
 
-    public get Callbacks(): Map<number, SubscriptionCallback>
+    public get Callbacks(): Map<number, TSubscriptionCallback>
     {
         return this.mCallbacks;
     }

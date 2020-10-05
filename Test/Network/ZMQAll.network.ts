@@ -6,7 +6,7 @@ import { ImportMock } from "ts-mock-imports";
 import { Delay } from "../../Src/Utils/Delay";
 import JSONBigInt from "../../Src/Utils/JSONBigInt";
 import { EPublishMessage, TPublishMessage, ZMQPublisher } from "../../Src/ZMQPublisher";
-import { TRequestResponse, ZMQRequest } from "../../Src/ZMQRequest";
+import { ERequestResponse, TRequestResponse, TSuccessfulRequest, ZMQRequest } from "../../Src/ZMQRequest";
 import { ZMQResponse } from "../../Src/ZMQResponse";
 import { TSubscriptionEndpoints, ZMQSubscriber } from "../../Src/ZMQSubscriber/ZMQSubscriber";
 import { DUMMY_ENDPOINTS } from "../Helpers/DummyEndpoints.data";
@@ -78,25 +78,30 @@ test.serial("ZMQRequest: Start, Send, Receive, Close", async(t: ExecutionContext
     const lPromiseResult: TRequestResponse = await lRequester.Send(JSONBigInt.Stringify(t.context.TestData));
     lExpected.data = t.context.TestData;
 
-    if (typeof lPromiseResult !== "string")
+    if (lPromiseResult.ResponseType === ERequestResponse.SUCCESS)
     {
-        t.fail(`Request failed: ${lPromiseResult.RequestId}`);
+        t.deepEqual(JSONBigInt.Parse(lPromiseResult.Response), lExpected);
     }
     else
     {
-        t.deepEqual(JSONBigInt.Parse(lPromiseResult), lExpected);
+        t.fail(JSONBigInt.Stringify(
+            {
+                msg: "Request failed",
+                lPromiseResult,
+            },
+        ));
     }
 
     const lNotThrowResult: TRequestResponse = await lRequester.Send("this should not throw");
     lExpected.data = "this should not throw";
 
-    if (typeof lNotThrowResult !== "string")
+    if (lNotThrowResult.ResponseType === ERequestResponse.SUCCESS)
     {
-        t.fail(`Request failed: ${lNotThrowResult.RequestId}`);
+        t.deepEqual(JSONBigInt.Parse(lNotThrowResult.Response), lExpected);
     }
     else
     {
-        t.deepEqual(JSONBigInt.Parse(lNotThrowResult), lExpected);
+        t.fail(JSONBigInt.Stringify({msg: "Request failed", lNotThrowResult }));
     }
 
     lRequester.Close();
@@ -117,13 +122,13 @@ test.serial("ZMQResponse: Start, Receive, Close", async(t: ExecutionContext<TTes
 
     const lFirstResponse: TRequestResponse = await lRequester.Send("hello");
 
-    t.is(lFirstResponse, "world");
+    t.is((lFirstResponse as TSuccessfulRequest).Response, "world");
     t.is(lResponse["mCachedRequests"].size, 1);
 
     lResponder = async(aMsg: string): Promise<string> => aMsg + " response";
     const lSecondResponse: TRequestResponse = await lRequester.Send("hello");
 
-    t.is(lSecondResponse, "hello response");
+    t.is((lSecondResponse as TSuccessfulRequest).Response, "hello response");
     t.is(lResponse["mCachedRequests"].size, 2);
 
     lResponse.Close();
