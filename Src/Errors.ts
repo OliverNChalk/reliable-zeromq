@@ -62,3 +62,21 @@ export const DEFAULT_ZMQ_REQUEST_ERROR_HANDLERS: TZMQRequestErrorHandlers =
 {
     HighWaterMarkWarning: (aWarning: TRequestHwmWarning): void => {},
 };
+
+// ZMQResponse Errors
+export type TResponseHwmWarning =
+{
+    Requester: string;
+    Nonce: number;
+    Message: string;
+};
+
+export type TZMQResponseErrorHandlers =
+{
+    HighWaterMarkWarning: (aWarning: TResponseHwmWarning) => void;
+};
+
+export const DEFAULT_ZMQ_RESPONSE_ERROR_HANDLERS: TZMQResponseErrorHandlers =
+{
+    HighWaterMarkWarning: (aWarning: TResponseHwmWarning): void => {},
+};
