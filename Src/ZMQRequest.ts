@@ -42,6 +42,7 @@ export class ZMQRequest
     private readonly mPendingRequests: Map<number, TResolve> = new Map();
     private mRequestNonce: number = 0;
     private readonly mRoundTripMax: number;
+    private mSafeToSend: boolean = true;
     private readonly mSendQueue: Queue<TSendRequest> = new Queue();
 
     public constructor(aReceiverEndpoint: string, aErrorHandlers?: TZMQRequestErrorHandlers)
@@ -73,6 +74,22 @@ export class ZMQRequest
         }
     }
 
+    private HandleZMQSendError(aError: any, aRequest: TRequestBody): void
+    {
+        if (aError && aError.code && aError.code === "EAGAIN")
+        {
+            this.mErrorHandlers.HighWaterMarkWarning({
+                Requester: aRequest[ERequestBody.RequesterId],
+                Nonce: Number(aRequest[ERequestBody.Nonce]),
+                Message: aRequest[ERequestBody.Message],
+            });
+        }
+        else
+        {
+            throw aError;
+        }
+    }
+
     private IsErrorMessage(aMessage: string): boolean
     {
         return aMessage === RESPONSE_CACHE_EXPIRED;
@@ -85,7 +102,7 @@ export class ZMQRequest
 
         while (this.mPendingRequests.has(aRequestId) && Date.now() < lMaximumSendTime)
         {
-            await this.SendMessage(aRequest);
+            await this.QueueSend(aRequest);
             await this.mCancellableDelay.Create(RESPONSE_TIMEOUT);
         }
 
@@ -95,18 +112,32 @@ export class ZMQRequest
     private Open(): void
     {
         this.mDealer = new zmq.Dealer;
+        this.mDealer.sendTimeout = 0;
         this.mDealer.connect(this.mEndpoint);
+
         this.ResponseHandler();
     }
 
     private async ProcessSend(): Promise<void>
     {
-        const lNextSend: TSendRequest | undefined = this.mSendQueue.dequeue();  // Don't we only want one send at a time?
+        const lNextSend: TSendRequest | undefined = this.mSendQueue.peek();
 
-        if (lNextSend)
+        if (lNextSend && this.mSafeToSend)
         {
-            await this.mDealer.send(lNextSend.Request);
+            this.mSafeToSend = false;
+            this.mSendQueue.dequeue();
+
+            try
+            {
+                await this.mDealer.send(lNextSend.Request);
+            }
+            catch (aError)
+            {
+                this.HandleZMQSendError(aError, lNextSend.Request);
+            }
+
             lNextSend.Resolve();
+            this.mSafeToSend = true;
 
             this.ProcessSend();
         }
@@ -134,18 +165,7 @@ export class ZMQRequest
         }
     }
 
-    private async ResponseHandler(): Promise<void>
-    {
-        for await (const [nonce, msg] of this.mDealer)
-        {
-            if (this.mDealer)
-            {
-                this.ProcessZmqReceive(nonce, msg);
-            }
-        }
-    }
-
-    private SendMessage(aRequest: TRequestBody): Promise<void>
+    private QueueSend(aRequest: TRequestBody): Promise<void>
     {
         let lResolver: () => void;
 
@@ -165,11 +185,22 @@ export class ZMQRequest
         return lPromise;
     }
 
+    private async ResponseHandler(): Promise<void>
+    {
+        for await (const [nonce, msg] of this.mDealer)
+        {
+            if (this.mDealer)
+            {
+                this.ProcessZmqReceive(nonce, msg);
+            }
+        }
+    }
+
     private async SendRequest(aRequest: TRequestBody): Promise<TRequestResponse>
     {
         const lRequestId: number = Number(aRequest[ERequestBody.Nonce]);
 
-        await this.SendMessage(aRequest);   // Can potentially move this inside of ManageRequest loop
+        await this.QueueSend(aRequest);   // Can potentially move this inside of ManageRequest loop
         this.ManageRequest(lRequestId, aRequest);
 
         return new Promise<TRequestResponse>((aResolve: TResolve): void =>

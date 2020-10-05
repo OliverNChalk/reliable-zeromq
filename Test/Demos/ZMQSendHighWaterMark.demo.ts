@@ -1,8 +1,8 @@
 /* tslint:disable no-console tslint:disable no-string-literal */
 import Config from "../../Src/Config";
-import { TDroppedMessageWarning, TPublisherCacheError } from "../../Src/Errors";
+import { TDroppedMessageWarning, TPublisherCacheError, TPublisherHwmWarning } from "../../Src/Errors";
 import { Delay } from "../../Src/Utils/Delay";
-import { THighWaterMarkWarning, ZMQPublisher } from "../../Src/ZMQPublisher";
+import { ZMQPublisher } from "../../Src/ZMQPublisher";
 import { TSubscriptionEndpoints, ZMQSubscriber } from "../../Src/ZMQSubscriber/ZMQSubscriber";
 import TestEndpoint from "../Helpers/TestEndpoint";
 
@@ -20,7 +20,7 @@ async function RunHWMDemo(aHighWaterMark: number): Promise<void>
     const lStatusUpdatePublisher: ZMQPublisher = new ZMQPublisher(
         lEndpoint,
         {
-            HighWaterMarkWarning: (aWarning: THighWaterMarkWarning): void => { lPubErrors.push(aWarning); },
+            HighWaterMarkWarning: (aWarning: TPublisherHwmWarning): void => { lPubErrors.push(aWarning); },
         },
     );
     await lStatusUpdatePublisher.Open();

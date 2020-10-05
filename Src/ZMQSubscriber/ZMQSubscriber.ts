@@ -72,11 +72,10 @@ export class ZMQSubscriber
 
         for await (const aBuffers of lSubSocket)
         {
-            if (this.mEndpoints.size > 0)
+            if (this.mEndpoints.has(aEndpoint.PublisherAddress))
             {
                 this.ParseNewMessage(aBuffers, aEndpoint);
             }
-            // NOTE: It is possible to receive messages after closing a socket with zero linger. I assume this is because socket closure is async
         }
     }
 

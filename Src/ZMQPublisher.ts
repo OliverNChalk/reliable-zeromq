@@ -29,13 +29,6 @@ export type TRecoveryMessage = TPublishMessage | TRecoveryFailure;
 export type TRecoveryRequest = [string, ...number[]];
 export type TRecoveryResponse = TRecoveryMessage[];
 
-export type THighWaterMarkWarning =
-{
-    Topic: string;
-    Nonce: number;
-    Message: string;
-};
-
 type TTopicDetails =
 {
     LatestMessageNonce: number;
@@ -69,7 +62,7 @@ export class ZMQPublisher
 
     private async CheckHeartbeats(): Promise<void>
     {
-        this.mTopicDetails.forEach(async(aValue: TTopicDetails, aTopicKey: string): Promise<void> =>
+        this.mTopicDetails.forEach((aValue: TTopicDetails, aTopicKey: string): void =>
         {
             if (aValue.LatestMessageTimestamp + Config.HeartBeatInterval <= Date.now())
             {
@@ -106,32 +99,20 @@ export class ZMQPublisher
                 const lMessageId: number = lDecodedRequest[i];
                 const lMessage: TPublishMessage | undefined = this.mMessageCaches.get(lTopic)!.get(lMessageId);
                 lRequestedMessages.push(lMessage ?? [PUBLISHER_CACHE_EXPIRED]);
-
-                // NOTE: A cache expiring is something the subscriber needs to deal with
-                // if (lMessage === undefined)
-                // {
-                //     this.mErrorHandlers.CacheError(
-                //         {
-                //             Endpoint: this.mEndpoint,
-                //             Topic: lTopic,
-                //             MessageNonce: lMessageId,
-                //         },
-                //     );
-                // }
             }
         }
 
         return Promise.resolve(JSONBigInt.Stringify(lRequestedMessages));
     }
 
-    private HandleZMQPublishError(aError: any, lFormattedMessage: string[]): void
+    private HandleZMQPublishError(aError: any, aFormattedMessage: string[]): void
     {
         if (aError && aError.code && aError.code === "EAGAIN")
         {
             this.mErrorHandlers.HighWaterMarkWarning({
-                Topic: lFormattedMessage[EPublishMessage.Topic],
-                Nonce: Number(lFormattedMessage[EPublishMessage.Nonce]),
-                Message: lFormattedMessage[EPublishMessage.Message],
+                Topic: aFormattedMessage[EPublishMessage.Topic],
+                Nonce: Number(aFormattedMessage[EPublishMessage.Nonce]),
+                Message: aFormattedMessage[EPublishMessage.Message],
             });
         }
         else

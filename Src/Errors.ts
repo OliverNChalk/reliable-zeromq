@@ -1,10 +1,16 @@
-import { THighWaterMarkWarning } from "./ZMQPublisher";
 import { TSubscriptionEndpoints } from "./ZMQSubscriber/ZMQSubscriber";
 
 // ZMQPublisher Errors
+export type TPublisherHwmWarning =
+{
+    Topic: string;
+    Nonce: number;
+    Message: string;
+};
+
 export type TZMQPublisherErrorHandlers =
 {
-    HighWaterMarkWarning: (aWarning: THighWaterMarkWarning) => void;
+    HighWaterMarkWarning: (aWarning: TPublisherHwmWarning) => void;
 };
 
 export const DEFAULT_ZMQ_PUBLISHER_ERROR_HANDLERS: TZMQPublisherErrorHandlers =
@@ -45,12 +51,21 @@ export type TResponseCacheError =
     MessageNonce: number;
 };
 
+export type TRequestHwmWarning =
+{
+    Requester: string;
+    Nonce: number;
+    Message: string;
+};
+
 export type TZMQRequestErrorHandlers =
 {
     CacheError: (aError: TResponseCacheError) => void;
+    HighWaterMarkWarning: (aWarning: TRequestHwmWarning) => void;
 };
 
 export const DEFAULT_ZMQ_REQUEST_ERROR_HANDLERS: TZMQRequestErrorHandlers =
 {
     CacheError: (aError: TResponseCacheError): void => { throw aError; },
+    HighWaterMarkWarning: (aWarning: TRequestHwmWarning): void => {},
 };
