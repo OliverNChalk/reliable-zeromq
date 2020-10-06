@@ -141,8 +141,7 @@ export class ZMQSubscriber
         }
         else if (lType === EMessageType.PUBLISH && lReceivedNonce > lTopicEntry.Nonce)
         {
-            lTopicEntry.ProcessPublishMessage(lReceivedNonce);
-            this.CallSubscribers(aEndpoint, lTopic, lMessage);
+            lTopicEntry.ProcessPublishMessage(lReceivedNonce, lMessage);
         }
     }
 

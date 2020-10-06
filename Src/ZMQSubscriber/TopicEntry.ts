@@ -47,16 +47,21 @@ export default class TopicEntry
         }
     }
 
-    public ProcessPublishMessage(aReceivedNonce: number): void
+    public ProcessPublishMessage(aReceivedNonce: number, aMessage: string): void
     {
         const lLastSeenNonce: number = this.mNonce;
         const lExpectedNonce: number = lLastSeenNonce + 1;
 
-        if (aReceivedNonce === lExpectedNonce)
+        if (aReceivedNonce >= lExpectedNonce)
         {
+            this.mCallbacks.forEach((aSubscriber: TSubscriptionCallback) =>
+            {
+                aSubscriber(aMessage);
+            });
             this.mNonce = aReceivedNonce;
         }
-        else if (aReceivedNonce > lExpectedNonce)
+
+        if (aReceivedNonce > lExpectedNonce)
         {
             const lStart: number = lExpectedNonce;
             const lEnd: number = aReceivedNonce - 1;
@@ -68,7 +73,6 @@ export default class TopicEntry
             }
 
             this.mRecoveryHandler(this.mEndpoint, this.mTopic, lMissingNonces);
-            this.mNonce = aReceivedNonce;
         }
     }
 }
