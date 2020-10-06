@@ -191,8 +191,8 @@ export class ZMQPublisher
         {
             lTopicDetails =
             {
-                LatestMessageNonce: 0,
-                LatestMessageTimestamp: 0,
+                LatestMessageNonce: -1,
+                LatestMessageTimestamp: -1,
             };
             this.mTopicDetails.set(aTopic, lTopicDetails);
         }

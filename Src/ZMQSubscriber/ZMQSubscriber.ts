@@ -199,7 +199,7 @@ export class ZMQSubscriber
         {
             for (let i: number = 0; i < aMessageIds.length; ++i)
             {
-                this.EmitCacheError(aEndpoint, aTopic, aMessageIds[i]); // TODO: Timeout vs CacheError?
+                this.EmitCacheError(aEndpoint, aTopic, aMessageIds[i]); // TODO: Timeout vs CacheError? // TODO: Single MessageId or array?
             }
         }
     }

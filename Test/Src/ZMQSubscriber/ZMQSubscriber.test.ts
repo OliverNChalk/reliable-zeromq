@@ -221,7 +221,7 @@ test.serial("Start, Subscribe, Recover, Close", async(t: ExecutionContext<TTestC
         [
             "myFirstTopic",
             EMessageType.PUBLISH,
-            "1",
+            "0",
             JSONBigInt.Stringify(t.context.TestData),
         ],
     );
@@ -271,18 +271,18 @@ test.serial("Start, Subscribe, Recover, Close", async(t: ExecutionContext<TTestC
                 lTopic.test[i].publish([
                     lTopic.topic,
                     EMessageType.PUBLISH,
-                    (i + 1).toString(),
+                    (i).toString(),
                     lTopic.test[i].data,
                 ]);
 
-                if (i + 1 === lTopic.test.length)
+                if (i === lTopic.test.length - 1)
                 {
                     // Duplicate final message to test drop handling
                     await YieldToEventLoop();
                     lTopic.test[i].publish([
                         lTopic.topic,
                         EMessageType.PUBLISH,
-                        (i + 1).toString(),
+                        (i).toString(),
                         "DUPLICATE MESSAGE: IGNORE DATA",
                     ]);
                 }
@@ -372,16 +372,16 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
 
     const lStatusResponse: TRecoveryResponse =
     [
-        ["TopicToTest", EMessageType.PUBLISH, 1, "Hello1"],
-        ["TopicToTest", EMessageType.PUBLISH, 2, "Hello2"],
-        ["TopicToTest", EMessageType.PUBLISH, 3, "Hello3"],
+        ["TopicToTest", EMessageType.PUBLISH, 0, "Hello1"],
+        ["TopicToTest", EMessageType.PUBLISH, 1, "Hello2"],
+        ["TopicToTest", EMessageType.PUBLISH, 2, "Hello3"],
     ];
     const lWeatherResponse: TRecoveryResponse =
     [
-        ["Sydney", EMessageType.PUBLISH, 1, "Rainy"],
-        ["Sydney", EMessageType.PUBLISH, 2, "Misty"],
-        ["Sydney", EMessageType.PUBLISH, 3, "Cloudy"],
-        ["Sydney", EMessageType.PUBLISH, 4, "Sunny"],
+        ["Sydney", EMessageType.PUBLISH, 0, "Rainy"],
+        ["Sydney", EMessageType.PUBLISH, 1, "Misty"],
+        ["Sydney", EMessageType.PUBLISH, 2, "Cloudy"],
+        ["Sydney", EMessageType.PUBLISH, 3, "Sunny"],
         [PUBLISHER_CACHE_EXPIRED] as any,
     ];
     lSendMock
@@ -401,28 +401,28 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
         ));
 
     await YieldToEventLoop();
-    lSubCallbacks[0]({ value: ["TopicToTest", EMessageType.PUBLISH, "4", "Hello4"], done: false });
+    lSubCallbacks[0]({ value: ["TopicToTest", EMessageType.PUBLISH, "3", "Hello4"], done: false });
     await YieldToEventLoop();
 
-    t.is(lSendMock.getCall(0).args[0], JSONBigInt.Stringify(["TopicToTest", 1, 2, 3]));
-    t.deepEqual(lDroppedMessages[0], { Topic: "TopicToTest", Nonces: [1, 2, 3] });
+    t.is(lSendMock.getCall(0).args[0], JSONBigInt.Stringify(["TopicToTest", 0, 1, 2]));
+    t.deepEqual(lDroppedMessages[0], { Topic: "TopicToTest", Nonces: [0, 1, 2] });
     t.is(lResults[0], "Hello4");    // Initial message first, followed by recovered messages in order
     t.is(lResults[1], "Hello1");
     t.is(lResults[2], "Hello2");
     t.is(lResults[3], "Hello3");
 
-    lSubCallbacks[1]({ value: ["Sydney", EMessageType.HEARTBEAT, "0", ""], done: false });
+    lSubCallbacks[1]({ value: ["Sydney", EMessageType.HEARTBEAT, "-1", ""], done: false });
     t.is(
         lSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress)!
             .TopicEntries.get("Sydney")!.Nonce,
-        0,
+        -1,
     );
 
     await YieldToEventLoop();
-    lSubCallbacks[3]({ value: ["Sydney", EMessageType.HEARTBEAT, "5", ""], done: false });
+    lSubCallbacks[3]({ value: ["Sydney", EMessageType.HEARTBEAT, "4", ""], done: false });
     await YieldToEventLoop();
 
-    t.is(lSendMock.getCall(1).args[0], JSONBigInt.Stringify(["Sydney", 1, 2, 3, 4, 5]));
+    t.is(lSendMock.getCall(1).args[0], JSONBigInt.Stringify(["Sydney", 0, 1, 2, 3, 4]));
     t.is(lResults[4], "Rainy");
     t.is(lResults[5], "Misty");
     t.is(lResults[6], "Cloudy");
@@ -433,7 +433,7 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
         {
             Endpoint: t.context.WeatherEndpoint,
             Topic: "Sydney",
-            MessageNonce: 5,
+            MessageNonce: 4,
         },
     );
     t.is(lResults.length, 8);
@@ -445,40 +445,40 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
     );
 
     await YieldToEventLoop();
-    lSubCallbacks[4]({ value: ["Sydney", EMessageType.PUBLISH, "5", "Overcast"], done: false });
+    lSubCallbacks[4]({ value: ["Sydney", EMessageType.PUBLISH, "4", "Overcast"], done: false });
     await YieldToEventLoop();
-    lSubCallbacks[5]({ value: ["Sydney", EMessageType.PUBLISH, "4", "Sunny"], done: false });
+    lSubCallbacks[5]({ value: ["Sydney", EMessageType.PUBLISH, "3", "Sunny"], done: false });
     await YieldToEventLoop();
-    lSubCallbacks[6]({ value: ["Sydney", EMessageType.PUBLISH, "3", "Cloudy"], done: false });
+    lSubCallbacks[6]({ value: ["Sydney", EMessageType.PUBLISH, "2", "Cloudy"], done: false });
     await YieldToEventLoop();
-    lSubCallbacks[7]({ value: ["Sydney", EMessageType.HEARTBEAT, "2", ""], done: false });
+    lSubCallbacks[7]({ value: ["Sydney", EMessageType.HEARTBEAT, "1", ""], done: false });
     await YieldToEventLoop();
-    lSubCallbacks[8]({ value: ["Sydney", EMessageType.HEARTBEAT, "5", ""], done: false });
+    lSubCallbacks[8]({ value: ["Sydney", EMessageType.HEARTBEAT, "4", ""], done: false });
     await YieldToEventLoop();
-    lSubCallbacks[9]({ value: ["Sydney", EMessageType.HEARTBEAT, "4", ""], done: false });
+    lSubCallbacks[9]({ value: ["Sydney", EMessageType.HEARTBEAT, "3", ""], done: false });
     await YieldToEventLoop();
-    lSubCallbacks[10]({ value: ["Sydney", EMessageType.HEARTBEAT, "3", ""], done: false });
+    lSubCallbacks[10]({ value: ["Sydney", EMessageType.HEARTBEAT, "2", ""], done: false });
 
     t.is(lResults.length, 8);
 
     await YieldToEventLoop();
-    lSubCallbacks[11]({ value: ["Sydney", EMessageType.PUBLISH, "6", "NewWeather"], done: false });
+    lSubCallbacks[11]({ value: ["Sydney", EMessageType.PUBLISH, "5", "NewWeather"], done: false });
     await YieldToEventLoop();
 
     t.is(lResults[8], "NewWeather");
     t.is(lResults[9], "NewWeather");
 
     // Test ZMQRequest.Send returns TRequestTimeOut
-    lSubCallbacks[12]({ value: ["Sydney", EMessageType.HEARTBEAT, "7", ""], done: false });
+    lSubCallbacks[12]({ value: ["Sydney", EMessageType.HEARTBEAT, "6", ""], done: false });
     await YieldToEventLoop();
 
-    t.is(lSendMock.getCall(2).args[0], JSONBigInt.Stringify(["Sydney", 7]));
+    t.is(lSendMock.getCall(2).args[0], JSONBigInt.Stringify(["Sydney", 6]));
     t.deepEqual(
         lCacheErrors[1],
         {
             Endpoint: t.context.WeatherEndpoint,
             Topic: "Sydney",
-            MessageNonce: 7,
+            MessageNonce: 6,
         },
     );
 

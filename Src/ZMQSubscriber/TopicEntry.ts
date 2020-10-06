@@ -8,7 +8,7 @@ export default class TopicEntry
     private readonly mEndpoint: TSubscriptionEndpoints;
     private readonly mRecoveryHandler: TRecoveryHandler;
     private readonly mTopic: string;
-    private mNonce: number = 0;
+    private mNonce: number = -1;
 
     public constructor(aEndpoint: TSubscriptionEndpoints, aTopic: string, aRecoveryHandler: TRecoveryHandler)
     {
@@ -50,14 +50,15 @@ export default class TopicEntry
     public ProcessPublishMessage(aReceivedNonce: number): void
     {
         const lLastSeenNonce: number = this.mNonce;
+        const lExpectedNonce: number = lLastSeenNonce + 1;
 
-        if (aReceivedNonce === lLastSeenNonce + 1)
+        if (aReceivedNonce === lExpectedNonce)
         {
             this.mNonce = aReceivedNonce;
         }
-        else if (aReceivedNonce > lLastSeenNonce + 1)
+        else if (aReceivedNonce > lExpectedNonce)
         {
-            const lStart: number = lLastSeenNonce + 1;
+            const lStart: number = lExpectedNonce;
             const lEnd: number = aReceivedNonce - 1;
 
             const lMissingNonces: number[] = [];

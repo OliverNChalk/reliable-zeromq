@@ -72,7 +72,7 @@ test.serial("Start, Publish, Respond, Close", async(t: ExecutionContext<TTestCon
     await lPublisher.Publish("myTopicA", "myFirstMessage");
 
     t.is(lSendMock.callCount, 1);
-    t.deepEqual(lSendMock.getCall(0).args[0], ["myTopicA", EMessageType.PUBLISH, "1", "myFirstMessage"]);
+    t.deepEqual(lSendMock.getCall(0).args[0], ["myTopicA", EMessageType.PUBLISH, "0", "myFirstMessage"]);
     t.is(lPublisher["mMessageCaches"].size, 1);
     t.is(lPublisher["mMessageCaches"].get("myTopicA")!.size, 1);
     t.is(lPublisher["mTopicDetails"].size, 1);
@@ -82,7 +82,7 @@ test.serial("Start, Publish, Respond, Close", async(t: ExecutionContext<TTestCon
     t.is(lSendMock.callCount, 2);
     t.deepEqual(
         lSendMock.getCall(1).args[0],
-        ["myTopicA", EMessageType.PUBLISH, "2", JSONBigInt.Stringify(t.context.TestData)],
+        ["myTopicA", EMessageType.PUBLISH, "1", JSONBigInt.Stringify(t.context.TestData)],
     );
     t.is(lPublisher["mMessageCaches"].size, 1);
     t.is(lPublisher["mMessageCaches"].get("myTopicA")!.size, 2);
@@ -91,8 +91,8 @@ test.serial("Start, Publish, Respond, Close", async(t: ExecutionContext<TTestCon
     const lRecoveryRequest: [string, ...number[]] =
     [
         "myTopicA",
+        0,
         1,
-        2,
     ];
     const lRecoveryResponse: string = await lPublisher["HandleRequest"](JSONBigInt.Stringify(lRecoveryRequest));
     const lExpectedRecoveryResponse: string[][] = [
@@ -104,8 +104,8 @@ test.serial("Start, Publish, Respond, Close", async(t: ExecutionContext<TTestCon
 
     const lInvalidRecoveryRequest: [number, number] =
     [
-        0,  // Missing TopicId string
-        1,
+        -1, // Non-existant nonce
+        0,
     ];
     const lInvalidRecoveryResponse: string
         = await lPublisher["HandleRequest"](JSONBigInt.Stringify(lInvalidRecoveryRequest));
@@ -135,15 +135,15 @@ test.serial("Start, Publish, Respond, Close", async(t: ExecutionContext<TTestCon
     const lSecondRecoveryRequest: [string, ...number[]] =
     [
         "newTopicA",
+        0,
         1,
         2,
-        3,
     ];
     const lThirdRecoveryRequest: [string, ...number[]] =
     [
         "newTopic1",
+        0,
         1,
-        2,
     ];
 
     const lSecondRecoveryResponse: string
@@ -180,9 +180,9 @@ test.serial("Start, Publish, Respond, Close", async(t: ExecutionContext<TTestCon
     ];
     const lExpectedHeartbeats: string[][] =
     [
-        ["myTopicA", EMessageType.HEARTBEAT, "2", ""],
-        ["newTopicA", EMessageType.HEARTBEAT, "3", ""],
-        ["newTopic1", EMessageType.HEARTBEAT, "2", ""],
+        ["myTopicA", EMessageType.HEARTBEAT, "1", ""],
+        ["newTopicA", EMessageType.HEARTBEAT, "2", ""],
+        ["newTopic1", EMessageType.HEARTBEAT, "1", ""],
     ];
 
     t.deepEqual(lHeartbeats, lExpectedHeartbeats);
@@ -216,13 +216,13 @@ test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
     await lPublisher.Publish("myTopicA", "myFirstMessage");
 
     t.is(lSendMock.callCount, 1);
-    t.deepEqual(lSendMock.getCall(0).args[0], ["myTopicA", EMessageType.PUBLISH, "1", "myFirstMessage"]);
+    t.deepEqual(lSendMock.getCall(0).args[0], ["myTopicA", EMessageType.PUBLISH, "0", "myFirstMessage"]);
 
     const lFirstRecoveryRequest: [string, ...number[]] =
     [
         "myTopicA",
+        0,
         1,
-        2,
     ];
     const lFirstRecoveryResponse: string[][] = JSONBigInt.Parse(
         await lPublisher["HandleRequest"](JSONBigInt.Stringify(lFirstRecoveryRequest)),
@@ -247,19 +247,19 @@ test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
     const lSecondRecoveryRequest: [string, ...number[]] =
     [
         "myTopicA",
+        0,
         1,
         2,
         3,
-        4,
     ];
     const lSecondRecoveryResponse: string[][] = JSONBigInt.Parse(
         await lPublisher["HandleRequest"](JSONBigInt.Stringify(lSecondRecoveryRequest)),
     );
     const lSecondExpectedResponse: string[][] = [
+        [PUBLISHER_CACHE_EXPIRED],      // 0
         [PUBLISHER_CACHE_EXPIRED],      // 1
-        [PUBLISHER_CACHE_EXPIRED],      // 2
-        lSendMock.getCall(3).args[0],   // 3
-        lSendMock.getCall(4).args[0],   // 4
+        lSendMock.getCall(3).args[0],   // 2
+        lSendMock.getCall(4).args[0],   // 3
     ];
 
     t.deepEqual(lSecondRecoveryResponse, lSecondExpectedResponse);

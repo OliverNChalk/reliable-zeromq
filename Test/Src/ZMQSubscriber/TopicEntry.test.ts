@@ -35,14 +35,14 @@ test("Process Heartbeats & Publishes", (t: ExecutionContext<TTestContext>): void
 
     const lTopicEntry: TopicEntry = new TopicEntry(lSubscriptionEndpoints, lTopic, lRecoveryHandler);
 
-    lTopicEntry.ProcessHeartbeatMessage(2); // Recover 1 & 2
+    lTopicEntry.ProcessHeartbeatMessage(2); // Recover 0, 1 & 2 (nonce starts from zero)
     lTopicEntry.ProcessPublishMessage(5);   // Recover 3 & 4
     lTopicEntry.ProcessPublishMessage(4);   // Ignore
     lTopicEntry.ProcessHeartbeatMessage(8); // Recover 6, 7, & 8
     lTopicEntry.ProcessHeartbeatMessage(8); // Ignore
     lTopicEntry.ProcessPublishMessage(9);   // Ignore
 
-    t.deepEqual(lRecoveredMessages[0], [1, 2]);
+    t.deepEqual(lRecoveredMessages[0], [0, 1, 2]);
     t.deepEqual(lRecoveredMessages[1], [3, 4]);
     // 3rd call ignored
     t.deepEqual(lRecoveredMessages[2], [6, 7, 8]);

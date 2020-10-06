@@ -63,7 +63,7 @@ export class ZMQRequest
     private readonly mErrorHandlers: TZMQRequestErrorHandlers;
     private readonly mOurUniqueId: string;
     private readonly mPendingRequests: Map<number, TRequestResolver> = new Map();
-    private mRequestNonce: number = 0;
+    private mRequestNonce: number = -1;
     private readonly mRoundTripMax: number;
     private mSafeToSend: boolean = true;
     private readonly mSendQueue: Queue<TZmqSendRequest> = new Queue();
@@ -254,7 +254,7 @@ export class ZMQRequest
 
     public async Send(aData: string): Promise<TRequestResponse>
     {
-        const lRequestId: number = this.mRequestNonce++;
+        const lRequestId: number = ++this.mRequestNonce;
         const lRequest: TRequestBody =
         [
             this.mOurUniqueId,

@@ -192,7 +192,7 @@ test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestConte
 
     const lSaveResult = (aEndpoint: string, aTopic: string, aNonce: number, aMessage: string): void =>
     {
-        lTestDataResult[aEndpoint].Topics[aTopic].result[aNonce - 1] = aMessage;
+        lTestDataResult[aEndpoint].Topics[aTopic].result[aNonce] = aMessage;
     };
 
     const lSubscribe = (aEndpoint: TSubscriptionEndpoints, aTopic: string): void =>
@@ -243,22 +243,7 @@ test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestConte
         }
     }
 
-    while
-    (
-            lSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress)!
-                .TopicEntries.get("TopicA")!.Nonce < 1
-        ||  lSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress)!
-                .TopicEntries.get("TopicB")!.Nonce < 1
-        ||  lSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress)!
-                .TopicEntries.get("TopicC")!.Nonce < 1
-        ||  lSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress)!
-                .TopicEntries.get("Sydney")!.Nonce < 1
-        ||  lSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress)!
-                .TopicEntries.get("Newcastle")!.Nonce < 1
-    )
-    {
-        await Delay(100);
-    }
+    await Delay(50);
 
     for (const aEndpoint in lTestDataResult)
     {
