@@ -1,3 +1,4 @@
+import { NonceMap } from "../Utils/NonceMap";
 import { TSubscriptionCallback, TSubscriptionEndpoints } from "./ZMQSubscriber";
 
 type TRecoveryHandler = (aEndpoint: TSubscriptionEndpoints, aTopic: string, aMessageIds: number[]) => void;
@@ -9,6 +10,7 @@ export default class TopicEntry
     private readonly mRecoveryHandler: TRecoveryHandler;
     private readonly mTopic: string;
     private mNonce: number = -1;
+    private mNonceMap: NonceMap = new NonceMap();
 
     public constructor(aEndpoint: TSubscriptionEndpoints, aTopic: string, aRecoveryHandler: TRecoveryHandler)
     {
@@ -49,16 +51,30 @@ export default class TopicEntry
 
     public ProcessPublishMessage(aReceivedNonce: number, aMessage: string): void
     {
+        /*
+            TODO: Performance optimizations & refactoring:
+             - Allow batched nonce import, this will be useful for recovery requests
+             - Try and simplify the checking of newly inserted nonces, away from the dual mNonce and mNonceMap system
+               - Note that we don't want to call ZMQRequest.Send() multiple times because Send() already has retries in-
+                 built.
+        */
         const lLastSeenNonce: number = this.mNonce;
         const lExpectedNonce: number = lLastSeenNonce + 1;
 
         if (aReceivedNonce >= lExpectedNonce)
         {
+            this.mNonce = aReceivedNonce;
+        }
+
+        if (!this.mNonceMap.Has(aReceivedNonce))
+        {
             this.mCallbacks.forEach((aSubscriber: TSubscriptionCallback) =>
             {
                 aSubscriber(aMessage);
             });
-            this.mNonce = aReceivedNonce;
+
+            this.mNonceMap.Insert(aReceivedNonce);
+            this.mNonceMap.GarbageClean();
         }
 
         if (aReceivedNonce > lExpectedNonce)

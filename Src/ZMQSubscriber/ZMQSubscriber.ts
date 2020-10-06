@@ -79,16 +79,6 @@ export class ZMQSubscriber
         }
     }
 
-    private CallSubscribers(aEndpoint: TSubscriptionEndpoints, aTopic: string, aMessage: string): void
-    {
-        this.mEndpoints.get(aEndpoint.PublisherAddress)!.TopicEntries.get(aTopic)!.Callbacks.forEach(
-            (aCallback: TSubscriptionCallback): void =>
-            {
-                aCallback(aMessage);
-            },
-        );
-    }
-
     private EmitCacheError(aEndpoint: TSubscriptionEndpoints, aTopic: string, aMessageId: number): void
     {
         this.mErrorHandlers.CacheError(
@@ -184,13 +174,16 @@ export class ZMQSubscriber
             for (let i: number = 0; i < lParsedMessages.length; ++i)
             {
                 const lParsedMessage: TRecoveryMessage = lParsedMessages[i];
-                if (lParsedMessage.length === 1)
+                if (lParsedMessage.length !== 1)
                 {
-                    this.EmitCacheError(aEndpoint, aTopic, aMessageIds[i]);
+                    lEndpointEntry.TopicEntries.get(aTopic)?.ProcessPublishMessage(
+                        lParsedMessage[EPublishMessage.Nonce],
+                        lParsedMessage[EPublishMessage.Message],
+                    );
                 }
                 else
                 {
-                    this.CallSubscribers(aEndpoint, aTopic, lParsedMessage[EPublishMessage.Message]);
+                    this.EmitCacheError(aEndpoint, aTopic, aMessageIds[i]);
                 }
             }
         }

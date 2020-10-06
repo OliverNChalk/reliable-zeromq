@@ -43,7 +43,7 @@ test("Process Heartbeats & Publishes", (t: ExecutionContext<TTestContext>): void
 
     lTopicEntry.ProcessHeartbeatMessage(2); // Recover 0, 1 & 2 (nonce starts from zero)
     lTopicEntry.ProcessPublishMessage(5, "MySixthMessage");   // Call Callback : Recover 3 & 4
-    lTopicEntry.ProcessPublishMessage(4, "MyFifthMessage");   // Ignore Callback : No Recover
+    lTopicEntry.ProcessPublishMessage(4, "MyFifthMessage");   // Call Callback : No Recover
     lTopicEntry.ProcessHeartbeatMessage(8); // Recover 6, 7, & 8
     lTopicEntry.ProcessHeartbeatMessage(8); // No Recover
     lTopicEntry.ProcessPublishMessage(9, "MyTenthMessage");   // Call Callback : No Recover
@@ -55,9 +55,10 @@ test("Process Heartbeats & Publishes", (t: ExecutionContext<TTestContext>): void
     // 4th call ignored
     // 5th call ignored
 
-    t.is(lCallbackCalls.length, 2);
+    t.is(lCallbackCalls.length, 3);
     t.is(lCallbackCalls[0], "MySixthMessage");
-    t.is(lCallbackCalls[1], "MyTenthMessage");
+    t.is(lCallbackCalls[1], "MyFifthMessage");
+    t.is(lCallbackCalls[2], "MyTenthMessage");
 
     t.is(lTopicEntry.Nonce, 9);
     t.is(lTopicEntry.Callbacks.size, 1);
