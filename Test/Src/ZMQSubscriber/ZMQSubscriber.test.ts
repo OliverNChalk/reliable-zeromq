@@ -5,10 +5,11 @@ import sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
 import { TDroppedMessageWarning, TPublisherCacheError } from "../../../Src/Errors";
+import { Delay } from "../../../Src/Utils/Delay";
 import JSONBigInt from "../../../Src/Utils/JSONBigInt";
 import { EMessageType, PUBLISHER_CACHE_EXPIRED, TRecoveryResponse } from "../../../Src/ZMQPublisher";
 import * as ZMQRequest from "../../../Src/ZMQRequest";
-import { ERequestResponse } from "../../../Src/ZMQRequest";
+import { ERequestResponse, TSuccessfulRequest } from "../../../Src/ZMQRequest";
 import { TSubscriptionEndpoints, ZMQSubscriber } from "../../../Src/ZMQSubscriber/ZMQSubscriber";
 import { YieldToEventLoop } from "../../Helpers/AsyncTools";
 import { DUMMY_ENDPOINTS } from "../../Helpers/DummyEndpoints.data";
@@ -322,6 +323,7 @@ test.serial("Start, Subscribe, Recover, Close", async(t: ExecutionContext<TTestC
 
 test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
+    const clock: sinon.SinonFakeTimers = sinon.useFakeTimers();
     const lSubCallbacks: ((aValue: TAsyncIteratorResult) => void)[] = [];
     const lNewIterator = (aValue: TAsyncIteratorResult): { next(): Promise<TAsyncIteratorResult> } =>
     {
@@ -384,11 +386,24 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
         ["Sydney", EMessageType.PUBLISH, 3, "Sunny"],
         [PUBLISHER_CACHE_EXPIRED] as any,
     ];
+
+    const lStatusRecoveryPromise: Promise<TSuccessfulRequest> = new Promise(
+        (aResolve: (aValue: TSuccessfulRequest) => void): void =>
+        {
+            Delay(50).then(() =>
+            {
+                aResolve(
+                    {
+                        ResponseType: ERequestResponse.SUCCESS,
+                        Response: JSONBigInt.Stringify(lStatusResponse),
+                    },
+                );
+            });
+        },
+    );
+
     lSendMock
-        .onCall(0).returns(Promise.resolve({
-            ResponseType: ERequestResponse.SUCCESS,
-            Response: JSONBigInt.Stringify(lStatusResponse),
-        }))
+        .onCall(0).returns(lStatusRecoveryPromise)
         .onCall(1).returns(Promise.resolve({
             ResponseType: ERequestResponse.SUCCESS,
             Response: JSONBigInt.Stringify(lWeatherResponse),
@@ -401,15 +416,35 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
         ));
 
     await YieldToEventLoop();
-    lSubCallbacks[0]({ value: ["TopicToTest", EMessageType.PUBLISH, "3", "Hello4"], done: false });
+
+    lSubCallbacks[0]({ value: ["TopicToTest", EMessageType.PUBLISH, "3", "Hello4"], done: false }); // Send update with nonce 4
     await YieldToEventLoop();
 
+    t.is(lResults[0], "Hello4");
     t.is(lSendMock.getCall(0).args[0], JSONBigInt.Stringify(["TopicToTest", 0, 1, 2]));
     t.deepEqual(lDroppedMessages[0], { Topic: "TopicToTest", Nonces: [0, 1, 2] });
-    t.is(lResults[0], "Hello4");    // Initial message first, followed by recovered messages in order
-    t.is(lResults[1], "Hello1");
-    t.is(lResults[2], "Hello2");
+
+    lSubCallbacks[2]({ value: ["TopicToTest", EMessageType.PUBLISH, "1", "Hello2"], done: false}); // Send nonce 2 before recovery response
+    await YieldToEventLoop();
+
+    t.is(lResults[1], "Hello2");
+
+    clock.tick(50); // Trigger recovery response to resolve
+    await YieldToEventLoop();
+
+    t.is(lResults[2], "Hello1");
     t.is(lResults[3], "Hello3");
+
+    t.is(lResults[4], undefined);
+    t.is(lResults.length, 4);
+
+    lSubCallbacks[3]({ value: ["TopicToTest", EMessageType.PUBLISH, "3", "DUP_NONCE"], done: false});  // Send duplicate messages
+    await YieldToEventLoop();
+    lSubCallbacks[4]({ value: ["TopicToTest", EMessageType.PUBLISH, "1", "DUP_NONCE"], done: false});  // Send duplicate messages
+    await YieldToEventLoop();
+
+    t.is(lResults.length, 4);
+    t.is(lResults[4], undefined);
 
     lSubCallbacks[1]({ value: ["Sydney", EMessageType.HEARTBEAT, "-1", ""], done: false });
     t.is(
@@ -419,7 +454,7 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
     );
 
     await YieldToEventLoop();
-    lSubCallbacks[3]({ value: ["Sydney", EMessageType.HEARTBEAT, "4", ""], done: false });
+    lSubCallbacks[6]({ value: ["Sydney", EMessageType.HEARTBEAT, "4", ""], done: false });
     await YieldToEventLoop();
 
     t.is(lSendMock.getCall(1).args[0], JSONBigInt.Stringify(["Sydney", 0, 1, 2, 3, 4]));
@@ -445,31 +480,32 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
     );
 
     await YieldToEventLoop();
-    lSubCallbacks[4]({ value: ["Sydney", EMessageType.PUBLISH, "4", "Overcast"], done: false });
+    lSubCallbacks[7]({ value: ["Sydney", EMessageType.PUBLISH, "3", "Overcast"], done: false });
     await YieldToEventLoop();
-    lSubCallbacks[5]({ value: ["Sydney", EMessageType.PUBLISH, "3", "Sunny"], done: false });
+    lSubCallbacks[8]({ value: ["Sydney", EMessageType.PUBLISH, "2", "Sunny"], done: false });
     await YieldToEventLoop();
-    lSubCallbacks[6]({ value: ["Sydney", EMessageType.PUBLISH, "2", "Cloudy"], done: false });
+    lSubCallbacks[9]({ value: ["Sydney", EMessageType.PUBLISH, "1", "Cloudy"], done: false });
     await YieldToEventLoop();
-    lSubCallbacks[7]({ value: ["Sydney", EMessageType.HEARTBEAT, "1", ""], done: false });
+    lSubCallbacks[10]({ value: ["Sydney", EMessageType.HEARTBEAT, "0", ""], done: false });
     await YieldToEventLoop();
-    lSubCallbacks[8]({ value: ["Sydney", EMessageType.HEARTBEAT, "4", ""], done: false });
+    lSubCallbacks[11]({ value: ["Sydney", EMessageType.HEARTBEAT, "3", ""], done: false });
     await YieldToEventLoop();
-    lSubCallbacks[9]({ value: ["Sydney", EMessageType.HEARTBEAT, "3", ""], done: false });
+    lSubCallbacks[12]({ value: ["Sydney", EMessageType.HEARTBEAT, "2", ""], done: false });
     await YieldToEventLoop();
-    lSubCallbacks[10]({ value: ["Sydney", EMessageType.HEARTBEAT, "2", ""], done: false });
+    lSubCallbacks[13]({ value: ["Sydney", EMessageType.HEARTBEAT, "1", ""], done: false });
 
+    // console.log(lResults);
     t.is(lResults.length, 8);
 
     await YieldToEventLoop();
-    lSubCallbacks[11]({ value: ["Sydney", EMessageType.PUBLISH, "5", "NewWeather"], done: false });
+    lSubCallbacks[14]({ value: ["Sydney", EMessageType.PUBLISH, "5", "NewWeather"], done: false });
     await YieldToEventLoop();
 
     t.is(lResults[8], "NewWeather");
     t.is(lResults[9], "NewWeather");
 
     // Test ZMQRequest.Send returns TRequestTimeOut
-    lSubCallbacks[12]({ value: ["Sydney", EMessageType.HEARTBEAT, "6", ""], done: false });
+    lSubCallbacks[15]({ value: ["Sydney", EMessageType.HEARTBEAT, "6", ""], done: false });
     await YieldToEventLoop();
 
     t.is(lSendMock.getCall(2).args[0], JSONBigInt.Stringify(["Sydney", 6]));

@@ -129,7 +129,7 @@ export class ZMQSubscriber
         {
             lTopicEntry.ProcessHeartbeatMessage(lReceivedNonce);
         }
-        else if (lType === EMessageType.PUBLISH && lReceivedNonce > lTopicEntry.Nonce)
+        else if (lType === EMessageType.PUBLISH)
         {
             lTopicEntry.ProcessPublishMessage(lReceivedNonce, lMessage);
         }
