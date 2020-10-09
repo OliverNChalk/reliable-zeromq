@@ -5,6 +5,7 @@ import * as Sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
 import Config from "../../Src/Config";
+import { TPublisherHwmWarning } from "../../Src/Errors";
 import JSONBigInt from "../../Src/Utils/JSONBigInt";
 import { EMessageType, EPublishMessage, PUBLISHER_CACHE_EXPIRED, ZMQPublisher } from "../../Src/ZMQPublisher";
 import * as ZMQResponse from "../../Src/ZMQResponse";
@@ -69,7 +70,7 @@ test.serial("Start, Publish, Respond, Close", async(t: ExecutionContext<TTestCon
     t.is(lPublisher.Endpoint, DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress);
 
     const lSendMock: Sinon.SinonStub = lZmqPublisher.mock("send", Promise.resolve());
-    await lPublisher.Publish("myTopicA", "myFirstMessage");
+    lPublisher.Publish("myTopicA", "myFirstMessage");
 
     t.is(lSendMock.callCount, 1);
     t.deepEqual(lSendMock.getCall(0).args[0], ["myTopicA", EMessageType.PUBLISH, "0", "myFirstMessage"]);
@@ -77,7 +78,8 @@ test.serial("Start, Publish, Respond, Close", async(t: ExecutionContext<TTestCon
     t.is(lPublisher["mMessageCaches"].get("myTopicA")!.size, 1);
     t.is(lPublisher["mTopicDetails"].size, 1);
 
-    await lPublisher.Publish("myTopicA", JSONBigInt.Stringify(t.context.TestData));
+    lPublisher.Publish("myTopicA", JSONBigInt.Stringify(t.context.TestData));
+    await YieldToEventLoop();
 
     t.is(lSendMock.callCount, 2);
     t.deepEqual(
@@ -120,11 +122,13 @@ test.serial("Start, Publish, Respond, Close", async(t: ExecutionContext<TTestCon
         ["newTopic1", "myMessage~"],
         ["newTopic1", "myMessage~"],
     ];
-    await lPublisher.Publish("newTopicA", "myMessageA");
-    await lPublisher.Publish("newTopicA", "myMessageB");
-    await lPublisher.Publish("newTopicA", "myMessageC");
-    await lPublisher.Publish("newTopic1", "myMessage~");
-    await lPublisher.Publish("newTopic1", "myMessage~");
+
+    lPublisher.Publish("newTopicA", "myMessageA");
+    lPublisher.Publish("newTopicA", "myMessageB");
+    lPublisher.Publish("newTopicA", "myMessageC");
+    lPublisher.Publish("newTopic1", "myMessage~");
+    lPublisher.Publish("newTopic1", "myMessage~");
+    await YieldToEventLoop();
 
     for (let i: number = 0; i < 5; ++i)
     {
@@ -197,7 +201,7 @@ test.serial("Start, Publish, Respond, Close", async(t: ExecutionContext<TTestCon
     lPublisher.Close();
 });
 
-test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
+test.serial("Errors & Warns", async(t: ExecutionContext<TTestContext>) =>
 {
     const clock: Sinon.SinonFakeTimers = Sinon.useFakeTimers();
     const lZmqPublisher: MockManager<zmq.Publisher> = t.context.PublisherMock;
@@ -206,14 +210,24 @@ test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
     Config.MaximumLatency = 1000;
     Config.HeartBeatInterval = 500;
 
-    const lPublisher: ZMQPublisher = new ZMQPublisher(t.context.Endpoints);
-
-    lZmqPublisher.mock("bind", Promise.resolve());
-    // lResponseMock.mock("Open" as any, Promise.resolve());
-    await lPublisher.Open();
-
     const lSendMock: Sinon.SinonStub = lZmqPublisher.mock("send", Promise.resolve());
-    await lPublisher.Publish("myTopicA", "myFirstMessage");
+    lZmqPublisher.mock("bind", Promise.resolve());
+
+    const lWarnings: TPublisherHwmWarning[] = [];
+    const lPublisher: ZMQPublisher = new ZMQPublisher(t.context.Endpoints);
+    const lCustomPublisher: ZMQPublisher = new ZMQPublisher(
+        t.context.Endpoints,
+        {
+            HighWaterMarkWarning: (aWarning: TPublisherHwmWarning): void =>
+            {
+                lWarnings.push(aWarning);
+            },
+        },
+    );
+
+    await lCustomPublisher.Open();
+    await lPublisher.Open();
+    lPublisher.Publish("myTopicA", "myFirstMessage");
 
     t.is(lSendMock.callCount, 1);
     t.deepEqual(lSendMock.getCall(0).args[0], ["myTopicA", EMessageType.PUBLISH, "0", "myFirstMessage"]);
@@ -234,11 +248,11 @@ test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
 
     t.deepEqual(lFirstRecoveryResponse, lFirstExpectedResponse);
 
-    await lPublisher.Publish("myTopicA", "mySecondMessage");    // Message 1 & 2 published on timestamp: 0
+    lPublisher.Publish("myTopicA", "mySecondMessage");    // Message 1 & 2 published on timestamp: 0
     clock.tick(501);    // const EXPIRY_BUFFER: number = 500;
 
-    await lPublisher.Publish("myTopicA", "myThirdMessage");     // Message 3 & 4 published on timestamp: 1
-    await lPublisher.Publish("myTopicA", "myFourthMessage");
+    lPublisher.Publish("myTopicA", "myThirdMessage");     // Message 3 & 4 published on timestamp: 1
+    lPublisher.Publish("myTopicA", "myFourthMessage");
 
     // Expire messages 1 & 2
     clock.tick(Config.MaximumLatency * 3);
@@ -264,8 +278,51 @@ test.serial("Emits Errors", async(t: ExecutionContext<TTestContext>) =>
 
     t.deepEqual(lSecondRecoveryResponse, lSecondExpectedResponse);
 
+    lSendMock.returns(Promise.reject(
+        {
+            code: "EAGAIN",
+        },
+    ));
+
+    // Test HWMWarning
+    clock.tick(100);
+
+    t.is(lWarnings.length, 0);
+    t.is(lSendMock.callCount, 10);
+
+    lPublisher.Publish("myTopicA", "myFifthMessage");
+    await YieldToEventLoop();
+
+    t.is(lWarnings.length, 0);
+    t.is(lSendMock.callCount, 11);
+
+    lCustomPublisher.Publish("myTopicB", "myFirstMessage");
+    await YieldToEventLoop();
+
+    t.is(lWarnings.length, 1);
+    t.is(lSendMock.callCount, 12);
+    t.deepEqual(lWarnings[0], { Topic: "myTopicB", Nonce: 0, Message: "myFirstMessage" });
+
+    clock.tick(Config.HeartBeatInterval - 101); // Trigger old timeout
+    clock.tick(Config.HeartBeatInterval);       // Trigger new timeout
+    await YieldToEventLoop();
+
+    t.is(lWarnings.length, 2);
+    t.is(lSendMock.callCount, 14);
+    t.deepEqual(lWarnings[1], { Topic: "myTopicB", Nonce: 0, Message: "" });
+
+    lSendMock.returns(Promise.resolve());
+    clock.tick(Config.HeartBeatInterval);
+    await YieldToEventLoop();
+
+    const lActual: string[][] = [lSendMock.getCall(12).args[0], lSendMock.getCall(13).args[0]].sort();
+    const lExpected: string[][] = [["myTopicA", "HEARTBEAT", "4", ""], ["myTopicB", "HEARTBEAT", "0", ""]];
+
+    t.deepEqual(lActual, lExpected);
+
     lPublisher.Close();
+    await YieldToEventLoop();
 
     // Reset Config
-    Config.SetGlobalConfig(5000);
+    Config.SetGlobalConfig();
 });

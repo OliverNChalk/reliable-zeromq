@@ -138,7 +138,7 @@ export class ZMQPublisher
             }
             catch (aError)
             {
-                this.HandleZMQPublishError(aError, lFormattedMessage);
+                this.HandleZMQPublishError(aError, lFormattedMessage);  // TODO: No retries on HWM warnings
             }
             this.mSafeToPublish = true;
 
@@ -177,7 +177,7 @@ export class ZMQPublisher
         this.CheckHeartbeats();
     }
 
-    public async Publish(aTopic: string, aData: string): Promise<void>
+    public Publish(aTopic: string, aData: string): void
     {
         let lCache: ExpiryMap<number, TPublishMessage> | undefined = this.mMessageCaches.get(aTopic);
         if (!lCache)
@@ -208,6 +208,6 @@ export class ZMQPublisher
         lCache.set(lMessageNonce, lMessage);
         lTopicDetails.LatestMessageTimestamp = Date.now();  // TODO: Set LatestMessageTimestamp to time of send?
 
-        await this.QueuePublish(lMessage);
+        this.QueuePublish(lMessage);
     }
 }

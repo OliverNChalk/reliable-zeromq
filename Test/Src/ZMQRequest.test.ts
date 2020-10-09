@@ -24,7 +24,7 @@ const test: TestInterface<TTestContext> = anyTest as TestInterface<TTestContext>
 
 test.beforeEach((t: ExecutionContext<TTestContext>): void =>
 {
-    const lResolvers: ((aNameJeff: TAsyncIteratorResult) => void)[] = [];
+    const lResolvers: ((aResolver: TAsyncIteratorResult) => void)[] = [];
     function FakeIterator(): { next(): Promise<TAsyncIteratorResult> }
     {
         return {

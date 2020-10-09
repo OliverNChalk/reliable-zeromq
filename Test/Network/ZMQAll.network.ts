@@ -238,7 +238,7 @@ test.serial("ZMQPublisher & ZMQSubscriber", async(t: ExecutionContext<TTestConte
         {
             for (const aData of lTestDataResult[aEndpoint].Topics[aTopic].data)
             {
-                await lPublisher.Publish(aTopic, aData);
+                lPublisher.Publish(aTopic, aData);
             }
         }
     }

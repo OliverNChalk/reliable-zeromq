@@ -34,7 +34,7 @@ export default class Config
         this.mHeartbeatInterval = aHeartbeatInterval;
     }
 
-    public static SetGlobalConfig(aMaximumLatency: number, aHeartbeat: number = 1000): void
+    public static SetGlobalConfig(aMaximumLatency: number = 2000, aHeartbeat: number = 1000): void
     {
         if (aMaximumLatency < aHeartbeat)
         {

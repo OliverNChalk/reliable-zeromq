@@ -9,7 +9,7 @@ import { Delay } from "../../../Src/Utils/Delay";
 import JSONBigInt from "../../../Src/Utils/JSONBigInt";
 import { EMessageType, PUBLISHER_CACHE_EXPIRED, TRecoveryResponse } from "../../../Src/ZMQPublisher";
 import * as ZMQRequest from "../../../Src/ZMQRequest";
-import { ERequestResponse, TSuccessfulRequest } from "../../../Src/ZMQRequest";
+import { ERequestResponse, TRequestTimeOut, TSuccessfulRequest } from "../../../Src/ZMQRequest";
 import { TSubscriptionEndpoints, ZMQSubscriber } from "../../../Src/ZMQSubscriber/ZMQSubscriber";
 import { YieldToEventLoop } from "../../Helpers/AsyncTools";
 import { DUMMY_ENDPOINTS } from "../../Helpers/DummyEndpoints.data";
@@ -21,6 +21,7 @@ type TTestContext =
     TestData: any[];
     StatusEndpoint: TSubscriptionEndpoints;
     WeatherEndpoint: TSubscriptionEndpoints;
+    SendToReceiver: (aIndex: number, aMessage: string[]) => void;
 };
 
 const test: TestInterface<TTestContext> = anyTest as TestInterface<TTestContext>;
@@ -32,6 +33,25 @@ test.before((t: ExecutionContext<TTestContext>): void =>
 
 test.beforeEach((t: ExecutionContext<TTestContext>): void =>
 {
+    const lResolvers: ((aResolver: TAsyncIteratorResult) => void)[] = [];
+    function FakeIterator(): { next(): Promise<TAsyncIteratorResult> }
+    {
+        return {
+            async next(): Promise<TAsyncIteratorResult>
+            {
+                return new Promise((aResolve: (aValue: TAsyncIteratorResult) => void): void =>
+                {
+                    lResolvers.push(aResolve);
+                });
+            },
+        };
+    }
+
+    const lMockManager: MockManager<zmq.Subscriber> = ImportMock.mockClass<zmq.Subscriber>(zmq, "Subscriber");
+    // @ts-ignore
+    const lAsyncIteratorMock: sinon.SinonStub = lMockManager.mock(Symbol.asyncIterator);
+    lAsyncIteratorMock.callsFake(FakeIterator);
+
     const lRequestMock: MockManager<ZMQRequest.ZMQRequest> = ImportMock.mockClass<ZMQRequest.ZMQRequest>(ZMQRequest, "ZMQRequest");
 
     t.context =
@@ -55,6 +75,10 @@ test.beforeEach((t: ExecutionContext<TTestContext>): void =>
         WeatherEndpoint: {
             PublisherAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress,
             RequestAddress: DUMMY_ENDPOINTS.WEATHER_UPDATES.RequestAddress,
+        },
+        SendToReceiver: (aIndex: number, aMessage: string[]): void =>
+        {
+            lResolvers[aIndex]({value: aMessage, done: false});
         },
     };
 });
@@ -324,49 +348,43 @@ test.serial("Start, Subscribe, Recover, Close", async(t: ExecutionContext<TTestC
 test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
     const clock: sinon.SinonFakeTimers = sinon.useFakeTimers();
-    const lSubCallbacks: ((aValue: TAsyncIteratorResult) => void)[] = [];
-    const lNewIterator = (aValue: TAsyncIteratorResult): { next(): Promise<TAsyncIteratorResult> } =>
-    {
-        return {
-            async next(): Promise<TAsyncIteratorResult>
-            {
-                return new Promise((resolve: (aValue: TAsyncIteratorResult) => void): void =>
-                {
-                    lSubCallbacks.push(resolve);
-                });
-            },
-        };
-    };
 
-    const lZmqSubscriberMock: MockManager<zmq.Subscriber> = ImportMock.mockClass<zmq.Subscriber>(zmq, "Subscriber");
-    // @ts-ignore
-    const lIteratorStub: Sinon.SinonStub = lZmqSubscriberMock.mock(Symbol.asyncIterator, lNewIterator);
-    lIteratorStub.callsFake(lNewIterator);
+    const lCustomCacheErrors: TPublisherCacheError[] = [];
+    const lCustomDroppedMessages: TDroppedMessageWarning[] = [];
 
-    const lCacheErrors: TPublisherCacheError[] = [];
-    const lDroppedMessages: TDroppedMessageWarning[] = [];
-    const lSubscriber: ZMQSubscriber = new ZMQSubscriber(
+    const lCustomSubIds: number[] = [];
+    const lCustomResults: string[] = [];
+    const lDefaultSubIds: number[] = [];
+    const lDefaultResults: string[] = [];
+
+    const lCustomSubscriber: ZMQSubscriber = new ZMQSubscriber(
         {
-            CacheError: (aError: TPublisherCacheError): void => { lCacheErrors.push(aError); },
-            DroppedMessageWarn: (aWarning: TDroppedMessageWarning): void => { lDroppedMessages.push(aWarning); },
+            CacheError: (aError: TPublisherCacheError): void => { lCustomCacheErrors.push(aError); },
+            DroppedMessageWarn: (aWarning: TDroppedMessageWarning): void => { lCustomDroppedMessages.push(aWarning); },
         },
     );
+    const lDefaultSubscriber: ZMQSubscriber = new ZMQSubscriber();
 
-    const lSubscriptionIds: number[] = [];
-    const lResults: string[] = [];
-
-    lSubscriptionIds[0] = lSubscriber.Subscribe(
+    lCustomSubIds[0] = lCustomSubscriber.Subscribe(
         {
             PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,
             RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
         },
         "TopicToTest",
-        (aMsg: string): void => { lResults.push(aMsg); },
+        (aMsg: string): void => { lCustomResults.push(aMsg); },
     );
-    lSubscriptionIds[1] = lSubscriber.Subscribe(
+    lCustomSubIds[1] = lCustomSubscriber.Subscribe(
         t.context.WeatherEndpoint,
         "Sydney",
-        (aMsg: string): void => { lResults.push(aMsg); },
+        (aMsg: string): void => { lCustomResults.push(aMsg); },
+    );
+    lDefaultSubIds[0] = lDefaultSubscriber.Subscribe(
+        {
+            PublisherAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.PublisherAddress,
+            RequestAddress: DUMMY_ENDPOINTS.STATUS_UPDATES.RequestAddress,
+        },
+        "TopicToTest",
+        (aMsg: string): void => { lDefaultResults.push(aMsg); },
     );
 
     const lRequestMock: MockManager<ZMQRequest.ZMQRequest> = t.context.RequestMock;
@@ -387,130 +405,134 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
         [PUBLISHER_CACHE_EXPIRED] as any,
     ];
 
+    const lStatusSuccess: TSuccessfulRequest =
+    {
+        ResponseType: ERequestResponse.SUCCESS,
+        Response: JSONBigInt.Stringify(lStatusResponse),
+    };
     const lStatusRecoveryPromise: Promise<TSuccessfulRequest> = new Promise(
         (aResolve: (aValue: TSuccessfulRequest) => void): void =>
         {
             Delay(50).then(() =>
             {
-                aResolve(
-                    {
-                        ResponseType: ERequestResponse.SUCCESS,
-                        Response: JSONBigInt.Stringify(lStatusResponse),
-                    },
-                );
+                aResolve(lStatusSuccess);
             });
         },
     );
+    const lWeatherSuccess: TSuccessfulRequest =
+    {
+        ResponseType: ERequestResponse.SUCCESS,
+        Response: JSONBigInt.Stringify(lWeatherResponse),
+    };
+    const lFailedRecovery: TRequestTimeOut =
+    {
+        ResponseType: ERequestResponse.TIMEOUT,
+        MessageNonce: 1337,
+        RequestBody: ["bish", "bash", "bosh"],
+    };
 
     lSendMock
         .onCall(0).returns(lStatusRecoveryPromise)
-        .onCall(1).returns(Promise.resolve({
-            ResponseType: ERequestResponse.SUCCESS,
-            Response: JSONBigInt.Stringify(lWeatherResponse),
-        }))
-        .onCall(2).returns(Promise.resolve(
-            {
-                RequestId: 1337,
-                Request: ["bish", "bash", "bosh"],
-            },
-        ));
+        .onCall(1).returns(Promise.resolve(lWeatherSuccess))
+        .onCall(2).returns(Promise.resolve(lFailedRecovery))
+        .onCall(3).returns(Promise.resolve(lStatusSuccess));
 
     await YieldToEventLoop();
 
-    lSubCallbacks[0]({ value: ["TopicToTest", EMessageType.PUBLISH, "3", "Hello4"], done: false }); // Send update with nonce 4
+    t.context.SendToReceiver(0, ["TopicToTest", EMessageType.PUBLISH, "3", "Hello4"]); // Send update with nonce 4
     await YieldToEventLoop();
 
-    t.is(lResults[0], "Hello4");
+    t.is(lCustomResults[0], "Hello4");
     t.is(lSendMock.getCall(0).args[0], JSONBigInt.Stringify(["TopicToTest", 0, 1, 2]));
-    t.deepEqual(lDroppedMessages[0], { Topic: "TopicToTest", Nonces: [0, 1, 2] });
+    t.deepEqual(lCustomDroppedMessages[0], { Topic: "TopicToTest", Nonces: [0, 1, 2] });
 
-    lSubCallbacks[2]({ value: ["TopicToTest", EMessageType.PUBLISH, "1", "Hello2"], done: false}); // Send nonce 2 before recovery response
+    t.context.SendToReceiver(3, ["TopicToTest", EMessageType.PUBLISH, "1", "Hello2"]); // Send nonce 2 before recovery response
     await YieldToEventLoop();
 
-    t.is(lResults[1], "Hello2");
+    t.is(lCustomResults[1], "Hello2");
 
     clock.tick(50); // Trigger recovery response to resolve
     await YieldToEventLoop();
 
-    t.is(lResults[2], "Hello1");
-    t.is(lResults[3], "Hello3");
+    t.is(lCustomResults[2], "Hello1");
+    t.is(lCustomResults[3], "Hello3");
 
-    t.is(lResults[4], undefined);
-    t.is(lResults.length, 4);
+    t.is(lCustomResults[4], undefined);
+    t.is(lCustomResults.length, 4);
 
-    lSubCallbacks[3]({ value: ["TopicToTest", EMessageType.PUBLISH, "3", "DUP_NONCE"], done: false});  // Send duplicate messages
+    t.context.SendToReceiver(4, ["TopicToTest", EMessageType.PUBLISH, "3", "DUP_NONCE"]);   // Send duplicate messages
     await YieldToEventLoop();
-    lSubCallbacks[4]({ value: ["TopicToTest", EMessageType.PUBLISH, "1", "DUP_NONCE"], done: false});  // Send duplicate messages
+    t.context.SendToReceiver(5, ["TopicToTest", EMessageType.PUBLISH, "1", "DUP_NONCE"]);  // Send duplicate messages
     await YieldToEventLoop();
 
-    t.is(lResults.length, 4);
-    t.is(lResults[4], undefined);
+    t.is(lCustomResults.length, 4);
+    t.is(lCustomResults[4], undefined);
 
-    lSubCallbacks[1]({ value: ["Sydney", EMessageType.HEARTBEAT, "-1", ""], done: false });
+    t.context.SendToReceiver(1, ["Sydney", EMessageType.HEARTBEAT, "-1", ""]);
     t.is(
-        lSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress)!
+        lCustomSubscriber["mEndpoints"].get(DUMMY_ENDPOINTS.WEATHER_UPDATES.PublisherAddress)!
             .TopicEntries.get("Sydney")!.Nonce,
         -1,
     );
 
     await YieldToEventLoop();
-    lSubCallbacks[6]({ value: ["Sydney", EMessageType.HEARTBEAT, "4", ""], done: false });
+    t.context.SendToReceiver(7, ["Sydney", EMessageType.HEARTBEAT, "4", ""]);
     await YieldToEventLoop();
 
     t.is(lSendMock.getCall(1).args[0], JSONBigInt.Stringify(["Sydney", 0, 1, 2, 3, 4]));
-    t.is(lResults[4], "Rainy");
-    t.is(lResults[5], "Misty");
-    t.is(lResults[6], "Cloudy");
-    t.is(lResults[7], "Sunny");
-    t.is(lResults[8], undefined);
+    t.is(lCustomResults[4], "Rainy");
+    t.is(lCustomResults[5], "Misty");
+    t.is(lCustomResults[6], "Cloudy");
+    t.is(lCustomResults[7], "Sunny");
+    t.is(lCustomResults[8], undefined);
     t.deepEqual(
-        lCacheErrors[0],
+        lCustomCacheErrors[0],
         {
             Endpoint: t.context.WeatherEndpoint,
             Topic: "Sydney",
             MessageNonce: 4,
         },
     );
-    t.is(lResults.length, 8);
+    t.is(lCustomResults.length, 8);
 
-    lSubscriptionIds[2] = lSubscriber.Subscribe(
+    lCustomSubIds[2] = lCustomSubscriber.Subscribe(
         t.context.WeatherEndpoint,
         "Sydney",
-        (aMsg: string): void => { lResults.push(aMsg); },
+        (aMsg: string): void => { lCustomResults.push(aMsg); },
     );
 
     await YieldToEventLoop();
-    lSubCallbacks[7]({ value: ["Sydney", EMessageType.PUBLISH, "3", "Overcast"], done: false });
+    t.context.SendToReceiver(8, ["Sydney", EMessageType.PUBLISH, "3", "Overcast"]);
     await YieldToEventLoop();
-    lSubCallbacks[8]({ value: ["Sydney", EMessageType.PUBLISH, "2", "Sunny"], done: false });
+    t.context.SendToReceiver(9, ["Sydney", EMessageType.PUBLISH, "2", "Sunny"]);
     await YieldToEventLoop();
-    lSubCallbacks[9]({ value: ["Sydney", EMessageType.PUBLISH, "1", "Cloudy"], done: false });
+    t.context.SendToReceiver(10, ["Sydney", EMessageType.PUBLISH, "1", "Cloudy"]);
     await YieldToEventLoop();
-    lSubCallbacks[10]({ value: ["Sydney", EMessageType.HEARTBEAT, "0", ""], done: false });
+    t.context.SendToReceiver(11, ["Sydney", EMessageType.HEARTBEAT, "0", ""]);
     await YieldToEventLoop();
-    lSubCallbacks[11]({ value: ["Sydney", EMessageType.HEARTBEAT, "3", ""], done: false });
+    t.context.SendToReceiver(12, ["Sydney", EMessageType.HEARTBEAT, "3", ""]);
     await YieldToEventLoop();
-    lSubCallbacks[12]({ value: ["Sydney", EMessageType.HEARTBEAT, "2", ""], done: false });
+    t.context.SendToReceiver(13, ["Sydney", EMessageType.HEARTBEAT, "2", ""]);
     await YieldToEventLoop();
-    lSubCallbacks[13]({ value: ["Sydney", EMessageType.HEARTBEAT, "1", ""], done: false });
+    t.context.SendToReceiver(14, ["Sydney", EMessageType.HEARTBEAT, "1", ""]);
 
     // console.log(lResults);
-    t.is(lResults.length, 8);
+    t.is(lCustomResults.length, 8);
 
     await YieldToEventLoop();
-    lSubCallbacks[14]({ value: ["Sydney", EMessageType.PUBLISH, "5", "NewWeather"], done: false });
+    t.context.SendToReceiver(15, ["Sydney", EMessageType.PUBLISH, "5", "NewWeather"]);
     await YieldToEventLoop();
 
-    t.is(lResults[8], "NewWeather");
-    t.is(lResults[9], "NewWeather");
+    t.is(lCustomResults[8], "NewWeather");
+    t.is(lCustomResults[9], "NewWeather");
 
     // Test ZMQRequest.Send returns TRequestTimeOut
-    lSubCallbacks[15]({ value: ["Sydney", EMessageType.HEARTBEAT, "6", ""], done: false });
+    t.context.SendToReceiver(16, ["Sydney", EMessageType.HEARTBEAT, "6", ""]);
     await YieldToEventLoop();
 
     t.is(lSendMock.getCall(2).args[0], JSONBigInt.Stringify(["Sydney", 6]));
     t.deepEqual(
-        lCacheErrors[1],
+        lCustomCacheErrors[1],
         {
             Endpoint: t.context.WeatherEndpoint,
             Topic: "Sydney",
@@ -519,28 +541,33 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
     );
 
     // Unknown Message Type Drops Silently
-    t.is(lResults.length, 10);
-    t.is(lCacheErrors.length, 2);
+    t.is(lCustomResults.length, 10);
+    t.is(lCustomCacheErrors.length, 2);
 
-    lSubCallbacks[5]({ value: ["TopicToTest", "UNKNOWN", "20", ""], done: false });
+    t.context.SendToReceiver(6, ["TopicToTest", "UNKNOWN", "20", ""]);
     await YieldToEventLoop();
 
-    t.is(lResults.length, 10);
-    t.is(lCacheErrors.length, 2);
+    // DroppedMessageWarn suppressed by default handlers
+    t.context.SendToReceiver(2, ["TopicToTest", EMessageType.PUBLISH, "3", "Hello4"]); // Send update with nonce 4
+    await YieldToEventLoop();
 
-    lSubscriber.Unsubscribe(lSubscriptionIds[0]);
-    lSubscriber.Unsubscribe(lSubscriptionIds[1]);
-    lSubscriber.Unsubscribe(lSubscriptionIds[2]);
-    lSubscriber.Unsubscribe(1337);  // In current version unsubscribing from non-existent subscription is a no-op
+    t.is(lCustomResults.length, 10);
+    t.is(lCustomCacheErrors.length, 2);
+
+    lCustomSubscriber.Unsubscribe(lCustomSubIds[0]);
+    lCustomSubscriber.Unsubscribe(lCustomSubIds[1]);
+    lCustomSubscriber.Unsubscribe(lCustomSubIds[2]);
+    lCustomSubscriber.Unsubscribe(lDefaultSubIds[0]);
+    lCustomSubscriber.Unsubscribe(1337);  // In current version unsubscribing from non-existent subscription is a no-op
 
     // Send messages after unsubscribe
-    t.is(lResults.length, 10);
-    t.is(lCacheErrors.length, 2);
+    t.is(lCustomResults.length, 10);
+    t.is(lCustomCacheErrors.length, 2);
 
-    lSubCallbacks[17]({ value: ["TopicToTest", EMessageType.HEARTBEAT, "20", ""], done: false });
-    lSubCallbacks[16]({ value: ["Sydney", EMessageType.HEARTBEAT, "20", ""], done: false });
+    t.context.SendToReceiver(18, ["TopicToTest", EMessageType.HEARTBEAT, "20", ""]);
+    t.context.SendToReceiver(17, ["Sydney", EMessageType.HEARTBEAT, "20", ""]);
     await YieldToEventLoop();
 
-    t.is(lResults.length, 10);
-    t.is(lCacheErrors.length, 2);
+    t.is(lCustomResults.length, 10);
+    t.is(lCustomCacheErrors.length, 2);
 });

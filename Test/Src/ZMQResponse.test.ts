@@ -27,7 +27,7 @@ test.before((t: ExecutionContext<TTestContext>): void =>
 
 test.beforeEach((t: ExecutionContext<TTestContext>): void =>
 {
-    const lResolvers: ((aNameJeff: TAsyncIteratorResult) => void)[] = [];
+    const lResolvers: ((aResolver: TAsyncIteratorResult) => void)[] = [];
     function FakeIterator(): { next(): Promise<TAsyncIteratorResult> }
     {
         return {
