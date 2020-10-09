@@ -1,12 +1,14 @@
 /* tslint:disable: no-string-literal */
-import anyTest, { ExecutionContext } from "ava";
 import type { TestInterface } from "ava";
+import anyTest, { ExecutionContext } from "ava";
 import * as sinon from "sinon";
 import { ImportMock, MockManager } from "ts-mock-imports";
 import * as zmq from "zeromq";
 import Config from "../../Src/Config";
+import { TRequestHwmWarning } from "../../Src/Errors";
 import JSONBigInt from "../../Src/Utils/JSONBigInt";
-import { ERequestBody, TRequestResponse, TSuccessfulRequest, ZMQRequest } from "../../Src/ZMQRequest";
+import { ERequestBody, ERequestResponse, TRequestResponse, TSuccessfulRequest, ZMQRequest } from "../../Src/ZMQRequest";
+import { RESPONSE_CACHE_EXPIRED } from "../../Src/ZMQResponse";
 import { YieldToEventLoop } from "../Helpers/AsyncTools";
 
 type TAsyncIteratorResult = { value: any; done: boolean };
@@ -15,36 +17,31 @@ type TTestContext =
     ResponderEndpoint: string;
     TestData: any[];
     DealerMock: MockManager<zmq.Dealer>;
-    SUTCallback: (aMessage: TAsyncIteratorResult) => void;
-    SendToReceiver: (aMessage: string[]) => void;
+    SendToReceiver: (aIndex: number, aMessage: [nonce: string, message: string]) => void;
 };
 
-const test: TestInterface<TTestContext> = anyTest as TestInterface<TTestContext> ;
-
-test.before((t: ExecutionContext<TTestContext>): void =>
-{
-    // Unnecessary
-});
+const test: TestInterface<TTestContext> = anyTest as TestInterface<TTestContext>;
 
 test.beforeEach((t: ExecutionContext<TTestContext>): void =>
 {
-    // tslint:disable-next-line:typedef
-    const lNewIterator = (() =>
+    const lResolvers: ((aNameJeff: TAsyncIteratorResult) => void)[] = [];
+    function FakeIterator(): { next(): Promise<TAsyncIteratorResult> }
     {
         return {
             async next(): Promise<TAsyncIteratorResult>
             {
-                return new Promise((resolve: (aValue: TAsyncIteratorResult) => void): void =>
+                return new Promise((aResolve: (aValue: TAsyncIteratorResult) => void): void =>
                 {
-                    t.context.SUTCallback = resolve;
+                    lResolvers.push(aResolve);
                 });
             },
         };
-    })();
+    }
 
     const lMockManager: MockManager<zmq.Dealer> = ImportMock.mockClass<zmq.Dealer>(zmq, "Dealer");
     // @ts-ignore
-    lMockManager.mock(Symbol.asyncIterator, lNewIterator);
+    const lAsyncIteratorMock: sinon.SinonStub = lMockManager.mock(Symbol.asyncIterator);
+    lAsyncIteratorMock.callsFake(FakeIterator);
 
     t.context = {
         ResponderEndpoint: "tcp://127.0.0.1:3000",
@@ -60,10 +57,9 @@ test.beforeEach((t: ExecutionContext<TTestContext>): void =>
             },
         ],
         DealerMock: lMockManager,
-        SUTCallback: null!,
-        SendToReceiver: (aMessage: string[]): void =>
+        SendToReceiver: (aIndex: number, aMessage: string[]): void =>
         {
-            t.context.SUTCallback({ value: aMessage, done: false });
+            lResolvers[aIndex]({value: aMessage, done: false});
         },
     };
 });
@@ -97,12 +93,12 @@ test.serial("Start, Send, Receive, Close", async(t: ExecutionContext<TTestContex
         ],
     );
 
-    const lResponse: string[] =
+    const lResponse: [string, string] =
     [
         "0",
         "dummy message",
     ];
-    t.context.SendToReceiver(lResponse);
+    t.context.SendToReceiver(0, lResponse);
 
     const lPromiseResult: TRequestResponse = await lRequestPromise;
     t.deepEqual((lPromiseResult as TSuccessfulRequest).Response, lResponse[1]);
@@ -122,9 +118,9 @@ test.serial("Degraded Connection", async(t: ExecutionContext<TTestContext>): Pro
     lDealerStub.mock("send", Promise.resolve());
 
     const lRequestPromise: Promise<TRequestResponse> = lRequester.Send(JSONBigInt.Stringify(t.context.TestData));
-    const lResponse: string[] =
+    const lResponse: [string, string] =
     [
-        JSONBigInt.Stringify(0),
+        "0",
         "dummy message",
     ];
 
@@ -132,16 +128,16 @@ test.serial("Degraded Connection", async(t: ExecutionContext<TTestContext>): Pro
     await YieldToEventLoop();   // Sinon timers don't seem super reliable at triggering timeouts
     clock.tick(501);
     await YieldToEventLoop();
-    t.context.SendToReceiver(lResponse);
+    t.context.SendToReceiver(0, lResponse);
 
     const lPromiseResult: TRequestResponse = await lRequestPromise;
 
     t.is((lPromiseResult as TSuccessfulRequest).Response, lResponse[1]);
 
     const lSecondRequest: Promise<TRequestResponse> = lRequester.Send("MyTestDelayedResponse");
-    const lSecondResponse: string[] =
+    const lSecondResponse: [string, string] =
     [
-        JSONBigInt.Stringify(1),
+        "1",
         "another response",
     ];
 
@@ -150,11 +146,11 @@ test.serial("Degraded Connection", async(t: ExecutionContext<TTestContext>): Pro
     clock.tick(501);
     await YieldToEventLoop();
 
-    t.context.SendToReceiver(lSecondResponse);
+    t.context.SendToReceiver(1, lSecondResponse);
     await YieldToEventLoop();
-    t.context.SendToReceiver(lSecondResponse);
+    t.context.SendToReceiver(2, lSecondResponse);
     await YieldToEventLoop();
-    t.context.SendToReceiver(lSecondResponse);
+    t.context.SendToReceiver(3, lSecondResponse);
     await YieldToEventLoop();
 
     t.is((await lSecondRequest as TSuccessfulRequest).Response, lSecondResponse[1]);
@@ -162,18 +158,31 @@ test.serial("Degraded Connection", async(t: ExecutionContext<TTestContext>): Pro
     lRequester.Close();
 });
 
-test.serial("Error: Maximum Latency", async(t: ExecutionContext<TTestContext>): Promise<void> =>
+test.serial("Errors & Warns", async(t: ExecutionContext<TTestContext>): Promise<void> =>
 {
     const clock: sinon.SinonFakeTimers = sinon.useFakeTimers();
     const lDealerStub: MockManager<zmq.Dealer> = t.context.DealerMock;
-    const lRequester: ZMQRequest = new ZMQRequest(t.context.ResponderEndpoint);
+    const lEndpoint: string = t.context.ResponderEndpoint;
+
+    const lHighWaterMarkWarnings: TRequestHwmWarning[] = [];
+    const lRequester: ZMQRequest = new ZMQRequest(lEndpoint);
+
+    const lRequesterCustom: ZMQRequest = new ZMQRequest(
+        lEndpoint,
+        {
+            HighWaterMarkWarning: (aWarning: TRequestHwmWarning): void =>
+            {
+                lHighWaterMarkWarnings.push(aWarning);
+            },
+        },
+    );
 
     lDealerStub.mock("send", Promise.resolve());
     lDealerStub.mock("connect", undefined);
 
     const lFirstResponsePromise: Promise<TRequestResponse> = lRequester.Send(JSONBigInt.Stringify("hello"));
 
-    t.context.SendToReceiver([JSONBigInt.Stringify(0), "world"]);
+    t.context.SendToReceiver(0, [JSONBigInt.Stringify(0), "world"]);
 
     clock.tick(500);
 
@@ -187,11 +196,7 @@ test.serial("Error: Maximum Latency", async(t: ExecutionContext<TTestContext>): 
 
     const lFailedResult: TRequestResponse = await lFailedRequest;
 
-    if (typeof lFailedResult === "string")
-    {
-        t.fail("lFailedRequest resolved to a string instead of TRequestTimeOut");
-    }
-    else if ("RequestBody" in lFailedResult)
+    if (lFailedResult.ResponseType === ERequestResponse.TIMEOUT)
     {
         t.is(lFailedResult.MessageNonce, 1);
         t.is(lFailedResult.RequestBody[ERequestBody.Nonce], "1");
@@ -202,5 +207,72 @@ test.serial("Error: Maximum Latency", async(t: ExecutionContext<TTestContext>): 
         t.fail("lFailedRequest should have resolved to TRequestTimeOut");
     }
 
+    lDealerStub.mock("send", Promise.reject(
+        {
+            code: "EAGAIN",
+        },
+    ));
+
+    t.is(lHighWaterMarkWarnings.length, 0);
+
+    const lDefaultWarnPromise: Promise<TRequestResponse> = lRequester.Send("THIS SHOULD BE SUPPRESSED");
+    const lCustomWarnPromise: Promise<TRequestResponse> = lRequesterCustom.Send("THIS SHOULD PUSH TO ARRAY");
+    await YieldToEventLoop();
+
+    t.is(lHighWaterMarkWarnings.length, 1);
+    t.deepEqual(
+        lHighWaterMarkWarnings[0],
+        {
+            Requester: lRequesterCustom["mOurUniqueId"],
+            Nonce: 0,
+            Message: "THIS SHOULD PUSH TO ARRAY",
+        },
+    );
+
+    lDealerStub.mock("send", Promise.resolve());
+
+    t.context.SendToReceiver(2, ["2", "default errors response"]);
+    await YieldToEventLoop();
+
+    t.context.SendToReceiver(1, ["0", "custom errors response"]);
+    await YieldToEventLoop();
+
+    t.deepEqual(
+        await lDefaultWarnPromise,
+        {
+            ResponseType: ERequestResponse.SUCCESS,
+            Response: "default errors response",
+        },
+    );
+    t.deepEqual(
+        await lCustomWarnPromise,
+        {
+            ResponseType: ERequestResponse.SUCCESS,
+            Response: "custom errors response",
+        },
+    );
+
+    const lCacheError: Promise<TRequestResponse> = lRequester.Send("THIS SHOULD TRIGGER A CACHE ERROR");
+    await YieldToEventLoop();
+
+    t.context.SendToReceiver(3, ["3", RESPONSE_CACHE_EXPIRED]);
+    await YieldToEventLoop();
+
+    t.deepEqual(
+        await lCacheError,
+        {
+            ResponseType: ERequestResponse.CACHE_ERROR,
+            Endpoint: lEndpoint,
+            MessageNonce: 3,
+        },
+    );
+
     lRequester.Close();
+    lRequesterCustom.Close();
+    await YieldToEventLoop();
+
+    t.context.SendToReceiver(4, ["-10", "custom handler suppress"]);
+    t.context.SendToReceiver(5, ["-10", "default handler suppress"]);
+
+    await YieldToEventLoop();
 });

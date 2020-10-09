@@ -3,6 +3,7 @@ import anyTest, { ExecutionContext } from "ava";
 import type { TestInterface } from "ava";
 import * as sinon from "sinon";
 import { Delay } from "../../../Src/Utils/Delay";
+import { YieldToEventLoop } from "../../Helpers/AsyncTools";
 
 type TTestContext =
 {};
@@ -32,7 +33,7 @@ test("Constructor", async(t: ExecutionContext<TTestContext>): Promise<void> =>
     Delay(500).then((): void => { lCalled = true; });
 
     clock.tick(500);
-    await Promise.resolve();    // Yield test method to event loop
+    await YieldToEventLoop();   // Yield test method to event loop
 
     t.is(lCalled, true);
 
@@ -40,7 +41,7 @@ test("Constructor", async(t: ExecutionContext<TTestContext>): Promise<void> =>
     Delay().then((): void => { lCalled = true; });
 
     clock.tick(100);
-    await Promise.resolve();    // Yield test method to event loop
+    await YieldToEventLoop();   // Yield test method to event loop
 
     t.is(lCalled, true);
 });

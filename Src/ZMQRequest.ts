@@ -10,8 +10,6 @@ import {
 import { CancellableDelay } from "./Utils/Delay";
 import { RESPONSE_CACHE_EXPIRED } from "./ZMQResponse";
 
-const RESPONSE_TIMEOUT: number = 500;   // 500ms   (this includes computation time on the sync wrapped services)
-
 export type TRequestBody = [requesterId: string, nonce: string, message: string];
 type TRequestResolver = (aResult: TRequestResponse) => void;
 
@@ -78,6 +76,11 @@ export class ZMQRequest
         this.Open();
     }
 
+    private get ResponseTimeout(): number
+    {
+        return Config.HeartBeatInterval;
+    }
+
     public get Endpoint(): string
     {
         return this.mEndpoint;
@@ -96,6 +99,31 @@ export class ZMQRequest
                 },
             );
         }
+    }
+
+    private GenerateRequestResult(aMessage: string, aNonce: number): TRequestResponse
+    {
+        let lRequestResult: TRequestResponse;
+
+        if (this.IsErrorMessage(aMessage))
+        {
+            lRequestResult =
+            {
+                ResponseType: ERequestResponse.CACHE_ERROR,
+                Endpoint: this.mEndpoint,
+                MessageNonce: Number(aNonce),
+            };
+        }
+        else
+        {
+            lRequestResult =
+            {
+                ResponseType: ERequestResponse.SUCCESS,
+                Response: aMessage.toString(),
+            };
+        }
+
+        return lRequestResult;
     }
 
     private HandleZMQSendError(aError: any, aRequest: TRequestBody): void
@@ -124,12 +152,12 @@ export class ZMQRequest
     private async ManageRequest(aRequestId: number, aRequest: TRequestBody): Promise<void>
     {
         const lMaximumSendTime: number = Date.now() + this.mRoundTripMax;
-        await this.mCancellableDelay.Create(RESPONSE_TIMEOUT);
+        await this.mCancellableDelay.Create(this.ResponseTimeout);
 
         while (this.mPendingRequests.has(aRequestId) && Date.now() < lMaximumSendTime)
         {
             await this.QueueSend(aRequest);
-            await this.mCancellableDelay.Create(RESPONSE_TIMEOUT);
+            await this.mCancellableDelay.Create(this.ResponseTimeout);
         }
 
         this.AssertRequestProcessed(aRequestId, aRequest);
@@ -177,24 +205,9 @@ export class ZMQRequest
 
         const lMessageCaller: TRequestResolver | undefined = this.mPendingRequests.get(lRequestNonce);
 
-        if (this.IsErrorMessage(lMessage))
+        if (lMessageCaller)
         {
-            lMessageCaller && lMessageCaller(
-                {
-                        ResponseType: ERequestResponse.CACHE_ERROR,
-                        Endpoint: this.mEndpoint,
-                        MessageNonce: Number(nonce),
-                },
-            );
-        }
-        else if (lMessageCaller)
-        {
-            lMessageCaller(
-                {
-                    ResponseType: ERequestResponse.SUCCESS,
-                    Response: msg.toString(),
-                },
-            );
+            lMessageCaller(this.GenerateRequestResult(lMessage, lRequestNonce));
             this.mPendingRequests.delete(lRequestNonce);
         }
     }

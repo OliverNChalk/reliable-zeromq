@@ -40,7 +40,7 @@ export default class ExpiryMap<K, V> extends Map<K, V>
 
     private PruneStale = (): void =>
     {
-        delete (this.mNextExpiry);
+        delete(this.mNextExpiry);
         const lStaleTime: number = Date.now();
 
         // PERF: Can optimize with for() & break on undefined
@@ -67,6 +67,7 @@ export default class ExpiryMap<K, V> extends Map<K, V>
         if (this.mNextExpiry)
         {
             clearTimeout(this.mNextExpiry);
+            delete(this.mNextExpiry);
         }
 
     }

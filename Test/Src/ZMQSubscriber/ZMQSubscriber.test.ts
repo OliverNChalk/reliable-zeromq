@@ -518,8 +518,29 @@ test.serial("Message Recovery & Heartbeats", async(t: ExecutionContext<TTestCont
         },
     );
 
+    // Unknown Message Type Drops Silently
+    t.is(lResults.length, 10);
+    t.is(lCacheErrors.length, 2);
+
+    lSubCallbacks[5]({ value: ["TopicToTest", "UNKNOWN", "20", ""], done: false });
+    await YieldToEventLoop();
+
+    t.is(lResults.length, 10);
+    t.is(lCacheErrors.length, 2);
+
     lSubscriber.Unsubscribe(lSubscriptionIds[0]);
     lSubscriber.Unsubscribe(lSubscriptionIds[1]);
     lSubscriber.Unsubscribe(lSubscriptionIds[2]);
     lSubscriber.Unsubscribe(1337);  // In current version unsubscribing from non-existent subscription is a no-op
+
+    // Send messages after unsubscribe
+    t.is(lResults.length, 10);
+    t.is(lCacheErrors.length, 2);
+
+    lSubCallbacks[17]({ value: ["TopicToTest", EMessageType.HEARTBEAT, "20", ""], done: false });
+    lSubCallbacks[16]({ value: ["Sydney", EMessageType.HEARTBEAT, "20", ""], done: false });
+    await YieldToEventLoop();
+
+    t.is(lResults.length, 10);
+    t.is(lCacheErrors.length, 2);
 });

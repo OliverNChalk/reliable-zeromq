@@ -23,12 +23,12 @@ export class ZMQResponse
 {
     private readonly mCachedRequests: ExpiryMap<string, string | Promise<string>>;
     private readonly mEndpoint: string;
+    private readonly mErrorHandlers: TZMQResponseErrorHandlers;
     private readonly mRequestHandler: (aRequest: string) => Promise<string>;
     private mRouter!: zmq.Router;
     private mSafeToSend: boolean = true;
     private readonly mSeenMessages: Map<string, NonceMap> = new Map();
     private readonly mSendQueue: Queue<TZmqSendRequest> = new Queue();
-    private readonly mErrorHandlers: TZMQResponseErrorHandlers;
 
     public constructor(
         aReplierEndpoint: string,
@@ -49,18 +49,31 @@ export class ZMQResponse
         return this.mEndpoint;
     }
 
-    private HandleDuplicateRequest(sender_uid: Buffer, nonce: Buffer, routing_id: Buffer): void
+    private static GetCacheId(lSenderUID: string, nonce: Buffer): string
     {
-        const lSenderUID: string = sender_uid.toString();
-        const lMessageId: string = lSenderUID + nonce.toString();
-        const lCachedResponse: string | Promise<string> = this.mCachedRequests.get(lMessageId)!;    // ASSUMES: lCachedResponse null check has already been performed
+        return lSenderUID + nonce.toString();
+    }
+
+    private HandleDuplicateRequest(aSenderUID: string, routing_id: Buffer, nonce: Buffer): void
+    {
+        const lCacheId: string = ZMQResponse.GetCacheId(aSenderUID, nonce);
+        const lCachedResponse: string | Promise<string> | undefined = this.mCachedRequests.get(lCacheId);
 
         if (typeof lCachedResponse === "string")
         {
             this.QueueSend(
                 {
-                    Requester: lSenderUID,
+                    Requester: aSenderUID,
                     Response: [routing_id, nonce, lCachedResponse],
+                },
+            );
+        }
+        else if (lCachedResponse === undefined)
+        {
+            this.QueueSend(
+                {
+                    Requester: aSenderUID,
+                    Response: [routing_id, nonce, RESPONSE_CACHE_EXPIRED],
                 },
             );
         }
@@ -69,7 +82,7 @@ export class ZMQResponse
     private HandleNewRequest(sender_uid: Buffer, nonce: Buffer, msg: Buffer, routing_id: Buffer): void
     {
         const lSenderUID: string = sender_uid.toString();
-        const lMessageId: string = lSenderUID + nonce.toString();
+        const lMessageId: string = ZMQResponse.GetCacheId(lSenderUID, nonce);
 
         const lPromise: Promise<string> = this.mRequestHandler(msg.toString());
         this.mCachedRequests.set(lMessageId, lPromise); // TODO: Timer starts from when promise is inserted, this will cause issues if we move to an req, ack, rep model
@@ -96,18 +109,9 @@ export class ZMQResponse
             this.UpdateSeenMessages(lSenderUID, lNonce);
             this.HandleNewRequest(sender_uid, nonce, msg, routing_id);
         }
-        else if (this.RequestInCache(lSenderUID, lNonce))
-        {
-            this.HandleDuplicateRequest(sender_uid, nonce, routing_id);
-        }
         else
         {
-            this.QueueSend(
-                {
-                    Requester: lSenderUID,
-                    Response: [routing_id, nonce, RESPONSE_CACHE_EXPIRED],
-                },
-            );
+            this.HandleDuplicateRequest(lSenderUID, routing_id, nonce);
         }
     }
 
@@ -117,9 +121,9 @@ export class ZMQResponse
         {
             const lHighWaterMarkWarning: TResponseHwmWarning =
             {
-                Requester: aRequest[ERequestBody.RequesterId],
-                Nonce: Number(aRequest[ERequestBody.Nonce]),
-                Message: aRequest[ERequestBody.Message],
+                Requester: aRequest.Requester,
+                Nonce: Number(aRequest.Response[ERequestBody.Nonce]),
+                Message: aRequest.Response[ERequestBody.Message],
             };
             this.mErrorHandlers.HighWaterMarkWarning(lHighWaterMarkWarning);
         }
@@ -164,7 +168,7 @@ export class ZMQResponse
             }
             catch (aError)
             {
-                this.HandleZMQSendError(aError, lNextSend);
+                this.HandleZMQSendError(aError, lNextSend); // TODO: Re-queue the request
             }
 
             this.mSafeToSend = true;
@@ -189,13 +193,6 @@ export class ZMQResponse
                 this.HandleRequest(sender_uid, nonce, msg, routing_id);
             }
         }
-    }
-
-    private RequestInCache(aSenderUID: string, aNonce: number): boolean
-    {
-        const lMessageId: string = aSenderUID + aNonce.toString();
-
-        return this.mCachedRequests.has(lMessageId);
     }
 
     private UnseenRequest(aSenderUID: string, aNonce: number): boolean

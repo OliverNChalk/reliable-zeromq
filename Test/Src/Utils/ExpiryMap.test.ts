@@ -98,7 +98,7 @@ test("Staggered Insertion & Pruning", (t: ExecutionContext<TTestContext>): void 
     const clock: sinon.SinonFakeTimers = sinon.useFakeTimers();
     const lMap: ExpiryMap<bigint, number> = new ExpiryMap<bigint, number>(2000);
 
-    lMap.set(0n, 0);         // 0,1,2 at 0s. Expire 2s, Timer 2.5s
+    lMap.set(0n, 0);    // 0,1,2 at 0s. Expire 2s, Timer 2.5s
     lMap.set(1n, 1);
     lMap.set(2n, 2);
 
@@ -121,6 +121,25 @@ test("Staggered Insertion & Pruning", (t: ExecutionContext<TTestContext>): void 
     t.is(lMap.size, 3);
 
     clock.tick(900);    // 4.4s 3rd timer triggered, final 3 cleared
+    t.is(lMap.size, 0);
+
+    t.is(lMap.size, 0);
+    t.is(lMap["mNextExpiry"], undefined);
+
+    lMap.clear();
+    lMap.set(10n, 10);
+    lMap.set(11n, 11);
+    lMap.set(12n, 12);
+
+    t.is(lMap.size, 3);
+
+    clock.tick(100);    // Cleared timeout theoretical expiry
+    t.is(lMap.size, 3);
+
+    clock.tick(1900);   // 2s into new timeout
+    t.is(lMap.size, 3);
+
+    clock.tick(1000);   // 2.5s New timeout expiry
     t.is(lMap.size, 0);
 });
 

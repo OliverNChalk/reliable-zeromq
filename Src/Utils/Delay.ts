@@ -1,10 +1,10 @@
-export const Delay = (aMS: number = 100): Promise<void> =>
+export function Delay(aMS: number = 100): Promise<void>
 {
     return new Promise((aResolve: () => void): void =>
     {
        setTimeout(aResolve, aMS);
     });
-};
+}
 
 export class CancellableDelay
 {
