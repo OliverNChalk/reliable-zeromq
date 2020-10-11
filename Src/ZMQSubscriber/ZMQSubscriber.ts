@@ -159,7 +159,6 @@ export class ZMQSubscriber
         aMessageIds: number[],
     ): Promise<void>
     {
-        // TODO: Check for possibility that a messages gets played twice, I think I handled this via nonce...
         this.EmitDroppedMessageWarn(aTopic, aMessageIds);
         const lFormattedRequest: TRecoveryRequest = [aTopic, ...aMessageIds];   // PERF: Array manipulation
 
@@ -191,7 +190,7 @@ export class ZMQSubscriber
         {
             for (let i: number = 0; i < aMessageIds.length; ++i)
             {
-                this.EmitCacheError(aEndpoint, aTopic, aMessageIds[i]); // TODO: Timeout vs CacheError? // TODO: Single MessageId or array?
+                this.EmitCacheError(aEndpoint, aTopic, aMessageIds[i]);
             }
         }
     }

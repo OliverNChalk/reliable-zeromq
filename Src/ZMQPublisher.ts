@@ -88,7 +88,7 @@ export class ZMQPublisher
         const lDecodedRequest: number[] = [];
         for (let i: number = 1; i < lRequest.length; ++i)
         {
-            lDecodedRequest.push(Number(lRequest[i]));  // TODO: Check if the `Number()` wrapper is necessary?
+            lDecodedRequest.push((lRequest[i]) as number);  // TRecoveryRequest is [string, ...number[]], so values at index 1+ are numbers
         }
 
         const lRequestedMessages: TRecoveryMessage[] = [];
@@ -135,10 +135,12 @@ export class ZMQPublisher
             try
             {
                 await this.mPublisher.send(lFormattedMessage);
+
+                this.mTopicDetails.get(lFormattedMessage[EPublishMessage.Topic])!.LatestMessageTimestamp = Date.now();  // Update for the purposes of heartbeating
             }
             catch (aError)
             {
-                this.HandleZMQPublishError(aError, lFormattedMessage);  // TODO: No retries on HWM warnings
+                this.HandleZMQPublishError(aError, lFormattedMessage);
             }
             this.mSafeToPublish = true;
 
@@ -206,7 +208,7 @@ export class ZMQPublisher
             aData,
         ];
         lCache.set(lMessageNonce, lMessage);
-        lTopicDetails.LatestMessageTimestamp = Date.now();  // TODO: Set LatestMessageTimestamp to time of send?
+        lTopicDetails.LatestMessageTimestamp = Date.now();
 
         this.QueuePublish(lMessage);
     }

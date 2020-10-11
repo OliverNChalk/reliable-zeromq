@@ -85,10 +85,10 @@ export class ZMQResponse
         const lMessageId: string = ZMQResponse.GetCacheId(lSenderUID, nonce);
 
         const lPromise: Promise<string> = this.mRequestHandler(msg.toString());
-        this.mCachedRequests.set(lMessageId, lPromise); // TODO: Timer starts from when promise is inserted, this will cause issues if we move to an req, ack, rep model
+        this.mCachedRequests.set(lMessageId, lPromise); // WARN: Timer starts from when promise is inserted, this will cause issues if we move to an req, ack, rep model
 
-        lPromise.then((aResponse: string): void =>      // TODO: Review performance if we use a non-blocking await lPromise (would need to wrap in its own async method)
-        {                                               // NOTE: We could wrap lPromise: Promise<string> | string in a Promise.resolve(lPromise) instead of needing await
+        lPromise.then((aResponse: string): void =>
+        {
             this.mCachedRequests.set(lMessageId, aResponse);
             this.QueueSend(
                 {
@@ -168,7 +168,7 @@ export class ZMQResponse
             }
             catch (aError)
             {
-                this.HandleZMQSendError(aError, lNextSend); // TODO: Re-queue the request
+                this.HandleZMQSendError(aError, lNextSend);
             }
 
             this.mSafeToSend = true;

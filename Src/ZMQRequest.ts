@@ -88,7 +88,7 @@ export class ZMQRequest
 
     private AssertRequestProcessed(aRequestId: number, aRequest: TRequestBody): void
     {
-        const lResolver: TRequestResolver | undefined = this.mPendingRequests.get(aRequestId);  // TODO: Review why this is called assert when it doesnt assert
+        const lResolver: TRequestResolver | undefined = this.mPendingRequests.get(aRequestId);
         if (lResolver)
         {
             lResolver(
@@ -199,7 +199,6 @@ export class ZMQRequest
 
     private ProcessZmqReceive(nonce: Buffer, msg: Buffer): void
     {
-        // Forward requests to the registered handler
         const lRequestNonce: number = Number(nonce.toString());
         const lMessage: string = msg.toString();
 

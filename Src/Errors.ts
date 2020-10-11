@@ -10,7 +10,7 @@ export type TPublisherHwmWarning =
 
 export type TZMQPublisherErrorHandlers =
 {
-    HighWaterMarkWarning: (aWarning: TPublisherHwmWarning) => void;
+    HighWaterMarkWarning: (aWarning: TPublisherHwmWarning) => unknown;
 };
 
 export const DEFAULT_ZMQ_PUBLISHER_ERROR_HANDLERS: TZMQPublisherErrorHandlers =
@@ -34,8 +34,8 @@ export type TDroppedMessageWarning =
 
 export type TZMQSubscriberErrorHandlers =
 {
-    CacheError: (aError: TPublisherCacheError) => void;
-    DroppedMessageWarn: (aWarning: TDroppedMessageWarning) => void;
+    CacheError: (aError: TPublisherCacheError) => unknown;
+    DroppedMessageWarn: (aWarning: TDroppedMessageWarning) => unknown;
 };
 
 export const DEFAULT_ZMQ_SUBSCRIBER_ERROR_HANDLERS: TZMQSubscriberErrorHandlers =
@@ -45,7 +45,6 @@ export const DEFAULT_ZMQ_SUBSCRIBER_ERROR_HANDLERS: TZMQSubscriberErrorHandlers 
 };
 
 // ZMQRequest Errors
-
 export type TRequestHwmWarning =
 {
     Requester: string;
@@ -55,7 +54,7 @@ export type TRequestHwmWarning =
 
 export type TZMQRequestErrorHandlers =
 {
-    HighWaterMarkWarning: (aWarning: TRequestHwmWarning) => void;
+    HighWaterMarkWarning: (aWarning: TRequestHwmWarning) => unknown;
 };
 
 export const DEFAULT_ZMQ_REQUEST_ERROR_HANDLERS: TZMQRequestErrorHandlers =
@@ -73,7 +72,7 @@ export type TResponseHwmWarning =
 
 export type TZMQResponseErrorHandlers =
 {
-    HighWaterMarkWarning: (aWarning: TResponseHwmWarning) => void;
+    HighWaterMarkWarning: (aWarning: TResponseHwmWarning) => unknown;
 };
 
 export const DEFAULT_ZMQ_RESPONSE_ERROR_HANDLERS: TZMQResponseErrorHandlers =
